@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trang Truyện</title>
+<style>
+  body { background:#ffe4ee; font-family:Arial; margin:0; padding:20px; color:#333; }
+  .container { max-width:1100px; margin:auto; }
+  .card { background:#fff; padding:20px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:20px; }
+  .grid { display:grid; grid-template-columns:1fr 2fr; gap:20px; }
+  img { width:100%; height:280px; object-fit:cover; border-radius:18px; }
+  .tags span{ background:#f7b6d0; padding:6px 12px; border-radius:12px; margin-right:6px; font-size:14px; }
+  .tabs{ display:flex; border-radius:20px; overflow:hidden; }
+  .tab{ flex:1; text-align:center; padding:12px; font-weight:bold; }
+  .active{ background:#f06292; color:#fff; }
+  .inactive{ background:#fff; color:#777; }
+  .chapter-item{ display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid #ddd; }
+  .btn{ background:#f06292; color:#fff; padding:6px 14px; border-radius:12px; text-decoration:none; }
+  input{ padding:8px 12px; width:180px; border:1px solid #ccc; border-radius:10px; }
+  .search-box{ position:relative; }
+  .search-box img{ position:absolute; width:18px; left:8px; top:9px; opacity:0.5; }
+  .search-box input{ padding-left:32px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="card grid">
+    <div>
+      <img src="cover.jpg" alt="cover" />
+    </div>
+    <div>
+      <h1 style="color:#e91e63; font-size:26px;">Tôi Và Bạn Thân Cùng Xuyên Sách, Cô Ấy Lại Yêu Nam Chính Đến Cố Chấp</h1>
+      <div class="tags" style="margin:12px 0;">
+        <span>Xuyên Sách</span><span>Ngược</span><span>Hiện Đại</span><span>Trả Thù</span>
+      </div>
+      <p>Bạn thân và tôi cùng xuyên sách nhưng cô ấy lại cố chấp yêu nam chính...</p>
+
+      <div class="info" style="margin-top:12px; font-size:14px;">
+        <p>Tác giả: <b>Zhihu</b></p>
+        <p>Lượt xem: 22</p>
+        <p>Đề cử: 0</p>
+        <p>Chương: 6</p>
+        <p>Người đăng: Góc Truyện Của Yên</p>
+        <p>Trạng thái: <b style="color:#e91e63;">Hoàn thành</b></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs card">
+    <div class="tab active">📖 Chương (6)</div>
+    <div class="tab inactive">🎧 Audio (0)</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="color:#e91e63;">Danh Sách Chương (6)</h2>
+      <div class="search-box">
+        <img src="search.png" alt="" />
+        <input type="text" placeholder="Tên chương..." />
+      </div>
+    </div>
+
+    <!-- Danh sách chương (tự động) -->
+    <div id="chapter-list"></div>
+
+    <!-- Phân trang -->
+    <div id="pagination" style="text-align:center; margin-top:20px;"></div>
+
+    <script>
+      const totalChapters = 999999; // tổng số chương demo
+      const perPage = 20;
+      const totalPages = Math.ceil(totalChapters / perPage);
+
+      function loadPage(page){
+        const list = document.getElementById('chapter-list');
+        list.innerHTML = '';
+        const start = (page - 1) * perPage + 1;
+        const end = Math.min(start + perPage - 1, totalChapters);
+
+        for(let i = start; i <= end; i++){
+          list.innerHTML += `
+            <div class='chapter-item'>
+              <span>Chương ${i.toString().padStart(2,'0')}</span>
+              <a class='btn' href='#'>👁️ Đọc ngay</a>
+            </div>
+          `;
+        }
+
+        renderPagination(page);
+      }
+
+      function renderPagination(active){
+        const pag = document.getElementById('pagination');
+        pag.innerHTML = '';
+
+        function addBtn(i){
+          pag.innerHTML += `
+            <button onclick='loadPage(${i})'
+            style='padding:8px 14px; margin:0 4px; border-radius:10px; border:1px solid #e91e63; background:${i===active ? "#e91e63" : "#fff"}; color:${i===active?"#fff":"#e91e63"};'>${i}</button>`;
+        }
+
+        if(totalPages <= 9){
+          for(let i=1;i<=totalPages;i++) addBtn(i);
+          return;
+        }
+
+        addBtn(1);
+
+        if(active > 4) pag.innerHTML += `<span style='margin:0 6px;'>...</span>`;
+
+        let start = Math.max(2, active - 1);
+        let end = Math.min(totalPages - 1, active + 1);
+
+        for(let i = start; i <= end; i++) addBtn(i);
+
+        if(active < totalPages - 3) pag.innerHTML += `<span style='margin:0 6px;'>...</span>`;
+
+        addBtn(totalPages);
+      }
+
+      loadPage(1);
+    </script>
+    <!-- <div style="text-align:center; margin-top:20px;">
+      <a href="#" class="btn" style="padding:8px 14px; margin-right:6px;">1</a>
+      <a href="page2.html" class="btn" style="padding:8px 14px; background:#fff; color:#e91e63; border:1px solid #e91e63;">2</a>
+    </div> -->
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZhihuComic - Trang chủ</title>
+    <style>
+        /* Import font Segoe UI (nếu cần, hoặc dùng font hệ thống) */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .a1 {
+            font-weight: 600;
+        }
+
+        /* CSS cho header */
+        .header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: white;
+            box-sizing: border-box;
+            padding: 6px 24px 6px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            /* shadow-lg */
+            z-index: 30;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            /* gap-6 */
+        }
+
+        .logo {
+            height: 100%;
+            padding: 0.5rem 0;
+            /* py-2 */
+        }
+
+        .logo img {
+            height: 100%;
+            cursor: pointer;
+        }
+
+
+        /* Menu (di chuyển vào header-left để gần logo) */
+        .menu {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            /* gap-6 */
+        }
+
+        .menu-item {
+            position: relative;
+            color: #333;
+            /* text-text-main */
+            font-size: 0.875rem;
+            /* text-sm */
+            font-family: 'Segoe UI', sans-serif;
+            /* Font Segoe UI */
+            cursor: pointer;
+            transition: all 0.3s ease;
+            list-style: none;
+        }
+
+        .menu-item:hover {
+            color: #F472B6;
+            /* hover:text-primary */
+        }
+
+        .menu-item a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .menu-item.active span {
+            padding-bottom: 0.5rem;
+            /* pb-2 */
+            color: #F472B6;
+            /* text-primary */
+            font-weight: 600;
+            /* font-semibold */
+            border-bottom: 3px solid #F472B6;
+            /* border-b-[3px] border-primary */
+        }
+
+        .dropdown {
+            position: absolute;
+            top: 100%;
+            /* dính sát dưới menu cha */
+            left: 0;
+            background: white;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 1rem;
+            width: max-content;
+            display: none;
+            transition: all 0.3s ease;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 100;
+            list-style: none;
+        }
+
+        .menu-item:hover .dropdown {
+            display: block;
+            /* Hiển thị khi hover */
+        }
+
+        .dropdown-item {
+            padding: 0.75rem;
+            /* p-3 */
+            background: #f1f5f9;
+            /* bg-slate-100 */
+            border-radius: 0.375rem;
+            /* rounded-md */
+            margin-bottom: 0.75rem;
+            /* mb-3 */
+            min-width: 340px;
+            /* min-w-[340px] */
+            transition: box-shadow 0.3s ease;
+        }
+
+        .dropdown-item:hover {
+            background: #fef2f8;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-item a {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            /* gap-2 */
+            color: #F472B6;
+            /* text-primary */
+            text-decoration: none;
+        }
+
+        .dropdown-item span {
+            font-weight: 500;
+            /* font-medium */
+            color: #666;
+            /* text-text-secondary */
+        }
+
+        /* Buttons bên phải */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            /* gap-3 */
+        }
+
+        .header-right a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 0.75rem;
+            /* gap-3 */
+        }
+
+        .btn {
+            border-radius: 0.375rem;
+            /* rounded-md */
+            font-weight: 500;
+            /* font-medium */
+            font-family: 'Segoe UI', sans-serif;
+            /* Font Segoe UI */
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            /* shadow-sm */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            height: 2.5rem;
+            /* h-10 */
+            font-size: 0.875rem;
+            /* text-sm */
+            padding: 0 1rem;
+            /* px-4 */
+            text-decoration: none;
+            /* Bỏ underline cho link */
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            /* hover:shadow-md */
+        }
+
+        .btn-login {
+            background: #F472B6;
+            /* bg-primary */
+            color: white;
+        }
+
+        .btn-login:hover {
+            background: #E11D48;
+            /* hover:bg-primary-dark */
+        }
+
+        .btn-register {
+            background: white;
+            color: #F472B6;
+            /* text-primary */
+            border: 1px solid #F472B6;
+            /* border border-primary */
+        }
+
+        .btn-upload {
+            background: #F87171;
+            /* bg-red-400 */
+            color: white;
+        }
+
+        .btn-upload:hover {
+            background: #B91C1C;
+            /* hover:bg-red-700 */
+        }
+
+        .btn-upload svg {
+            margin-right: 0.25rem;
+            /* mr-1 */
+        }
+
+        .hamburger {
+            display: flex;
+            width: 2.5rem;
+            /* size-10 */
+            height: 2.5rem;
+            background: #f1f5f9;
+            /* bg-slate-100 */
+            border-radius: 50%;
+            /* rounded-full */
+            justify-content: center;
+            align-items: center;
+            border: none;
+            cursor: pointer;
+        }
+
+        .hamburger svg {
+            color: #F472B6;
+            /* text-primary */
+        }
+
+        /* Responsive: Ẩn menu và buttons trên mobile, chỉ hiện hamburger */
+        @media (max-width: 768px) {
+
+            .menu,
+            .buttons {
+                display: none;
+            }
+
+            .header {
+                padding: 0.5rem;
+                /* max-md:px-4 */
+            }
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="header">
+        <div class="header-left">
+            <a class="logo" href="/">
+                <img alt="ZhihuComic-logo-img" loading="lazy" width="180" height="96" decoding="async"
+                    src="Ảnh/app-logo-1.png" />
+            </a>
+            <!-- Menu di chuyển vào đây để gần logo -->
+            <ul class="menu">
+                <li class="menu-item">
+                    <a href="/" class="a1">
+                        <span class="active">Trang chủ</span> <!-- Thêm class "active" nếu đang ở trang này -->
+                    </a>
+                    <ul class="dropdown">
+                        <li class="dropdown-item">
+                            <a href="#last-completed-comic-section">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-heart">
+                                    <path
+                                        d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
+                                    </path>
+                                </svg>
+                                <span>Truyện mới</span>
+                            </a>
+                        </li>
+                        <li class="dropdown-item">
+                            <a href="#section-hot-comics">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-search">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.3-4.3"></path>
+                                </svg>
+                                <span>Truyện hot</span>
+                            </a>
+                        </li>
+                        <li class="dropdown-item">
+                            <a href="#section-top-outstanding">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-circle-check-big">
+                                    <path d="M21.801 10A10 10 0 1 1 17 3.335"></path>
+                                    <path d="m9 11 3 3L22 4"></path>
+                                </svg>
+                                <span>Truyện đề cử</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-item">
+                    <a href="/comic/search" class="a1">
+                        <span>Tìm truyện</span>
+                    </a>
+                    <ul class="dropdown">
+                        <li class="dropdown-item">
+                            <a href="/comic/search">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-search">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.3-4.3"></path>
+                                </svg>
+                                <span>Tìm kiếm truyện</span>
+                            </a>
+                        </li>
+                        <li class="dropdown-item">
+                            <a href="/comic/search">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-tags">
+                                    <path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"></path>
+                                    <path
+                                        d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z">
+                                    </path>
+                                    <circle cx="6.5" cy="9.5" r=".5" fill="currentColor"></circle>
+                                </svg>
+                                <span>Tìm theo thể loại</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="menu-item">
+                    <a href="/notification" class="a1">
+                        <span>Khám phá</span>
+                    </a>
+                    <ul class="dropdown">
+                        <li class="dropdown-item">
+                            <a href="/notification">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-bell">
+                                    <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
+                                    <path
+                                        d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326">
+                                    </path>
+                                </svg>
+                                <span>Thông báo</span>
+                            </a>
+                        </li>
+                        <li class="dropdown-item">
+                            <a href="/term-condition">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="lucide lucide-scroll-text">
+                                    <path d="M15 12h-5"></path>
+                                    <path d="M15 8h-5"></path>
+                                    <path d="M19 17V5a2 2 0 0 0-2-2H4"></path>
+                                    <path
+                                        d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3">
+                                    </path>
+                                </svg>
+                                <span>Điều khoản sử dụng</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        <div class="header-right">
+            <div class="buttons">
+                <a href="/login">
+                    <button class="btn btn-login" aria-label="Đăng nhập">Đăng nhập</button>
+                </a>
+                <a href="/register">
+                    <button class="btn btn-register" aria-label="Đăng ký">Đăng ký</button>
+                </a>
+                <a href="/login">
+                    <button class="btn btn-upload" aria-label="Đăng truyện">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-pen mr-1">
+                            <path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path>
+                        </svg>
+                        Đăng truyện
+                    </button>
+                </a>
+            </div>
+        </div>
+    </header>
+    <!DOCTYPE html>
+    <html lang="vi">
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tìm kiếm truyện</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: #fff;
+                color: #333;
+            }
+
+            .container {
+                max-width: 1280px;
+                margin: 150px auto;
+                padding: 0 50px;
+            }
+
+            /* Header */
+            .search-header {
+                display: flex;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                margin-bottom: 30px;
+            }
+
+            .search-header h2 {
+                font-size: 26px;
+                color: #e85ba2;
+                margin-bottom: 5px;
+            }
+
+            .search-header p {
+                font-size: 15px;
+                color: #555;
+            }
+
+            .search-box {
+                position: relative;
+                margin-top: 10px;
+            }
+
+            .search-box input {
+                width: 320px;
+                padding: 12px 40px 12px 15px;
+                border: 1px solid #ddd;
+                border-radius: 50px;
+                font-size: 15px;
+                outline: none;
+                transition: 0.3s;
+            }
+
+            .search-box input:focus {
+                border-color: #ff80bf;
+                box-shadow: 0 0 6px rgba(255, 128, 191, 0.4);
+            }
+
+            .search-box i {
+                position: absolute;
+                right: 15px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: #999;
+            }
+
+            /* Tags */
+            .category-title {
+                display: flex;
+                align-items: center;
+                color: #e85ba2;
+                font-weight: 600;
+                font-size: 18px;
+                margin-bottom: 10px;
+            }
+
+            .category-title i {
+                margin-right: 8px;
+            }
+
+            .category-tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-bottom: 40px;
+            }
+
+            .tag {
+                background: #f2f2f5;
+                padding: 8px 18px;
+                border-radius: 30px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+
+            .tag.active {
+                background: #ff80bf;
+                color: #fff;
+                font-weight: 600;
+            }
+
+            .tag:hover {
+                background: #ffb2d6;
+                color: #fff;
+            }
+
+            /* Story cards */
+            .story-grid {
+                display: grid;
+                grid-template-columns: repeat(6, 1fr);
+                /* mỗi hàng 6 truyện */
+                gap: 20px;
+            }
+
+            .story-card {
+                background: #fff;
+                border-radius: 15px;
+                overflow: hidden;
+                box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+            }
+
+            .story-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+            }
+
+            .story-card img {
+                width: 100%;
+                height: 230px;
+                object-fit: cover;
+            }
+
+            .story-info {
+                padding: 10px 12px 15px;
+            }
+
+            .story-title {
+                font-size: 16px;
+                font-weight: 600;
+                margin-top: 5px;
+            }
+
+            .story-meta {
+                font-size: 13px;
+                color: #777;
+                margin-top: 4px;
+            }
+
+            /* Pagination */
+            .pagination {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 8px;
+                margin-top: 40px;
+                flex-wrap: wrap;
+            }
+
+            .page-btn {
+                padding: 8px 14px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                cursor: pointer;
+                background: #fff;
+                transition: 0.2s;
+            }
+
+            .page-btn:hover {
+                background: #ffe3f1;
+                border-color: #ff80bf;
+            }
+
+            .page-btn.active {
+                background: #ff80bf;
+                color: #fff;
+                border-color: #ff80bf;
+            }
+
+            .page-btn.disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+
+            @media (max-width: 1200px) {
+                .story-grid {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+            }
+
+            @media (max-width: 768px) {
+                .story-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="search-header">
+                <div>
+                    <h2>Tìm kiếm truyện</h2>
+                    <p>Khám phá truyện mới nhất cùng chúng tôi!</p>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Tên truyện...">
+                    <i>🔍</i>
+                </div>
+            </div>
+
+            <div class="category-title"><i><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="lucide lucide-tag">
+                        <path
+                            d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z">
+                        </path>
+                        <circle cx="7.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                    </svg></i> Thể loại</div>
+            <div class="category-tags" id="categoryTags">
+                <div class="tag active">Tất cả</div>
+                <div class="tag">Bạch Hợp</div>
+                <div class="tag">Bác Sĩ</div>
+                <div class="tag">Bàn Tay Vàng</div>
+                <div class="tag">BE</div>
+                <div class="tag">Bí Ẩn</div>
+                <div class="tag">Cận Đại</div>
+                <div class="tag">Cảnh Sát</div>
+                <div class="tag">Cổ Đại</div>
+                <div class="tag">Cơ Giáp</div>
+                <div class="tag">Cung Đấu</div>
+                <div class="tag">Đam Mỹ</div>
+                <div class="tag">Đam Mỹ</div>
+                <div class="tag">Điền Văn</div>
+                <div class="tag">Đồng Nhân</div>
+                <div class="tag">Đô Thị</div>
+                <div class="tag">Duyên Trời Tác Hợp</div>
+                <div class="tag">Fanfic</div>
+                <div class="tag">Gia Đấu</div>
+                <div class="tag">Hắc Bang</div>
+                <div class="tag">Hài Hước</div>
+                <div class="tag">Hào Môn Thế Gia</div>
+                <div class="tag">HE</div>
+                <div class="tag">Hệ Thống</div>
+                <div class="tag">Hiện Đại</div>
+                <div class="tag">Huyền Huyễn</div>
+                <div class="tag">Kinh Dị</div>
+                <div class="tag">Làm Giàu</div>
+                <div class="tag">Làm Ruộng</div>
+                <div class="tag">Linh Dị</div>
+                <div class="tag">Mạt Thế</div>
+                <div class="tag">Mỹ Thực</div>
+                <div class="tag">Nam Chủ</div>
+                <div class="tag">Ngôn Tình</div>
+                <div class="tag">Ngọt Sủng</div>
+                <div class="tag">Ngược</div>
+                <div class="tag">Ngược Tra</div>
+                <div class="tag">NP</div>
+                <div class="tag">Nữ Chủ</div>
+                <div class="tag">Nữ Phụ</div>
+                <div class="tag">OE</div>
+                <div class="tag">Phản Diện</div>
+                <div class="tag">Phương Tây</div>
+                <div class="tag">Quân Nhân</div>
+                <div class="tag">SE</div>
+                <div class="tag">Showbiz</div>
+                <div class="tag">Sinh Tồn</div>
+                <div class="tag">Tâm Linh</div>
+                <div class="tag">Thanh Mai Trúc Mã</div>
+                <div class="tag">Thanh Xuân Vườn Trường</div>
+                <div class="tag">Thập Niên</div>
+                <div class="tag">Thiên Kim Thật Giả</div>
+                <div class="tag">Tiên Hiệp</div>
+                <div class="tag">Tội Phạm</div>
+                <div class="tag">Trạch Đấu</div>
+                <div class="tag">Trả Thù</div>
+                <div class="tag">Trinh Thám</div>
+                <div class="tag">Trùng Sinh</div>
+                <div class="tag">Tương Lai</div>
+                <div class="tag">Vả Mặt</div>
+                <div class="tag">Võ Hiệp</div>
+                <div class="tag">Xuyên Không</div>
+                <div class="tag">Xuyên Nhanh</div>
+                <div class="tag">Xuyên Sách</div>
+                <div class="tag">Y Học</div>
+            </div>
+
+            <div class="story-grid" id="storyGrid"></div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+
+        <script>
+            // Tạo danh sách 90 truyện mẫu
+            const stories = Array.from({ length: 9000 }, (_, i) => ({
+                title: "Truyện số " + (i + 1),
+                genre: ["Ngôn Tình", "Đam Mỹ", "Cổ Đại", "Hiện Đại", "Xuyên Không", "Ngọt Sủng"][i % 6],
+                img: `https://picsum.photos/seed/story${i}/300/400`
+            }));
+
+            const perPage = 30; // ✅ Mỗi trang 30 truyện
+            let currentPage = 1;
+
+            const storyGrid = document.getElementById("storyGrid");
+            const pagination = document.getElementById("pagination");
+
+            function renderStories() {
+                storyGrid.innerHTML = "";
+                const start = (currentPage - 1) * perPage;
+                const end = start + perPage;
+                const pageStories = stories.slice(start, end);
+
+                pageStories.forEach(story => {
+                    const div = document.createElement("div");
+                    div.className = "story-card";
+                    div.innerHTML = `
+          <img src="${story.img}" alt="${story.title}">
+          <div class="story-info">
+            <div class="story-title">${story.title}</div>
+            <div class="story-meta">${story.genre}</div>
+          </div>
+        `;
+                    storyGrid.appendChild(div);
+                });
+            }
+
+            function renderPagination() {
+                pagination.innerHTML = "";
+                const totalPages = Math.ceil(stories.length / perPage);
+
+                const prev = document.createElement("button");
+                prev.innerText = "‹";
+                prev.className = "page-btn";
+                if (currentPage === 1) prev.classList.add("disabled");
+                prev.onclick = () => {
+                    if (currentPage > 1) { currentPage--; update(); }
+                };
+                pagination.appendChild(prev);
+
+                for (let i = 1; i <= totalPages; i++) {
+                    const btn = document.createElement("button");
+                    btn.className = "page-btn" + (i === currentPage ? " active" : "");
+                    btn.innerText = i;
+                    btn.onclick = () => { currentPage = i; update(); };
+                    pagination.appendChild(btn);
+                }
+
+                const next = document.createElement("button");
+                next.innerText = "›";
+                next.className = "page-btn";
+                if (currentPage === totalPages) next.classList.add("disabled");
+                next.onclick = () => {
+                    if (currentPage < totalPages) { currentPage++; update(); }
+                };
+                pagination.appendChild(next);
+            }
+
+            function update() {
+                renderStories();
+                renderPagination();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+
+            update();
+
+            // Xử lý chọn tag thể loại
+            const tags = document.querySelectorAll('.tag');
+            tags.forEach(tag => {
+                tag.addEventListener('click', () => {
+                    tags.forEach(t => t.classList.remove('active'));
+                    tag.classList.add('active');
+                });
+            });
+
+            // Tìm kiếm truyện
+
+            const searchInput = document.getElementById('searchInput');
+
+            searchInput.addEventListener('input', e => {
+                const keyword = e.target.value.toLowerCase();
+                const storyCards = document.querySelectorAll('.story-card'); // ← đổi tên ở đây
+                storyCards.forEach(story => {
+                    const title = story.querySelector('.story-title').innerText.toLowerCase();
+                    story.style.display = title.includes(keyword) ? '' : 'none';
+                });
+            });
+
+        </script>
+    </body>
+
+    </html>

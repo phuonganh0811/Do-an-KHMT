@@ -39,11 +39,6 @@ while ($row = mysqli_fetch_assoc($rs)) {
             max-width: 1300px;
             margin: 0 auto;
             margin-top: 80px;
-
-            /* margin-top: 30px;
-            display: flex;
-            gap: 30px;
-            padding: 30px; */
         }
 
 

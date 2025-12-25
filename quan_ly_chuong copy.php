@@ -1,67 +1,159 @@
 <?php include "menu.php"; ?>
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require 'connect.php';
 require 'auth.php';
 require_login();
 
-$user_id = $_SESSION['user_id'];
-
-/* Gói nạp & khuyến mãi */
-$goi_nap = [
-    10000 => ['dau' => 8000, 'hoa' => 8000, 'he_thong' => 2000],
-    20000 => ['dau' => 16000, 'hoa' => 16000, 'he_thong' => 4000],
-    50000 => ['dau' => 40000, 'hoa' => 40000, 'he_thong' => 10000],
-    100000 => ['dau' => 85000, 'hoa' => 85000, 'he_thong' => 15000],
-    200000 => ['dau' => 170000, 'hoa' => 170000, 'he_thong' => 30000],
-    500000 => ['dau' => 450000, 'hoa' => 450000, 'he_thong' => 5000],
-    1000000 => ['dau' => 900000, 'hoa' => 900000, 'he_thong' => 100000],
-];
-
-$so_tien = isset($_GET['so_tien']) ? (int) $_GET['so_tien'] : 0;
-$ma_nap = null;
-
-/* Khi bấm "Nạp ngay" */
-if ($so_tien && isset($goi_nap[$so_tien])) {
-
-    $ma_nap = 'NAP' . time() . rand(100, 999);
-
-    $stmt = $conn->prepare("
-        INSERT INTO nap_tien (id_user, so_tien, ma_nap, trang_thai)
-        VALUES (?, ?, ?, 'cho_duyet')
-    ");
-    $stmt->bind_param("iis", $user_id, $so_tien, $ma_nap);
-    $stmt->execute();
+/* 1. Nhận id_truyen */
+if (!isset($_GET['id_truyen'])) {
+    die("Thiếu ID truyện");
 }
+
+$id_truyen = (int) $_GET['id_truyen'];
+$id_tac_gia = $_SESSION['user_id'];
+
+/* 2. Search chương */
+$keyword = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+/* 3. Pagination */
+$perPage = 20;
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$offset = ($page - 1) * $perPage;
+
+/* 4. Đếm tổng chương */
+$sql_count = "
+    SELECT COUNT(*) as total
+    FROM chuong_truyen ct
+    INNER JOIN truyen t ON t.id = ct.id_truyen
+    WHERE ct.id_truyen = ?
+      AND t.id_tac_gia = ?
+      AND ct.tieu_de LIKE ?
+";
+$stmt = $conn->prepare($sql_count);
+$like = "%$keyword%";
+$stmt->bind_param("iis", $id_truyen, $id_tac_gia, $like);
+$stmt->execute();
+$totalRows = $stmt->get_result()->fetch_assoc()['total'];
+$totalPages = ceil($totalRows / $perPage);
+
+/* 5. Lấy danh sách chương (CÓ LIMIT) */
+$sql = "
+    SELECT 
+        ct.id,
+        ct.so_chuong,
+        ct.tieu_de,
+        ct.gia,
+        ct.la_tra_phi,
+        ct.luot_xem,
+        ct.ngay_tao
+    FROM chuong_truyen ct
+    INNER JOIN truyen t ON t.id = ct.id_truyen
+    WHERE ct.id_truyen = ?
+      AND t.id_tac_gia = ?
+      AND ct.tieu_de LIKE ?
+    ORDER BY ct.so_chuong ASC
+    LIMIT ?, ?
+";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("iisii", $id_truyen, $id_tac_gia, $like, $offset, $perPage);
+$stmt->execute();
+$chuongs = $stmt->get_result();
 ?>
+
 
 <!DOCTYPE html>
 <html lang="vi">
 
 <head>
     <meta charset="UTF-8">
-    <title>Nạp điểm</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <title>Quản lý truyện</title>
     <style>
-        .divider-wrap {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 24px;
-        }
-
-        .divider {
-            width: 100px;
-            /* ~ w-32 */
-            height: 1px;
-            background-color: #d1d5db;
-        }
-
         .user-stats h4 {
             margin-bottom: 20px;
+        }
+
+        .truyen-link {
+            color: #ff6fae;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .truyen-link:hover {
+            text-decoration: underline;
+        }
+
+        .cover-img {
+            width: 60px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #eee;
+        }
+
+        .no-cover {
+            color: #999;
+            font-size: 13px;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+        }
+
+        .page-item {
+            padding: 8px 14px;
+            margin: 0 4px;
+            border-radius: 10px;
+            border: 1px solid #ff6fae;
+            background: #fff;
+            color: #ff6fae;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .page-item:hover {
+            background: #fce4ec;
+        }
+
+        .page-item.active {
+            background: #ff6fae;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .search-box {
+            position: relative;
+            margin-top: 10px;
+        }
+
+        .search-box input {
+            width: 320px;
+            padding: 12px 40px 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 50px;
+            font-size: 15px;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: #ff80bf;
+            box-shadow: 0 0 6px rgba(255, 128, 191, 0.4);
+        }
+
+        .search-box i {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+        }
+
+        .btn.full1 {
+            width: 20%;
+            background: #ff6fae;
+            color: white;
+            margin-top: 12px;
         }
 
         /* ================= BIẾN MÀU ================= */
@@ -138,18 +230,13 @@ if ($so_tien && isset($goi_nap[$so_tien])) {
             display: flex;
             justify-content: space-between;
             margin-bottom: 20px;
-            align-items: center;
         }
 
         .step {
             display: flex;
             align-items: center;
-            flex-direction: column;
-            /* ⭐ icon trên - chữ dưới */
             gap: 8px;
             color: var(--gray);
-            text-align: center;
-            font-size: 14px;
         }
 
         .step.active {
@@ -204,6 +291,7 @@ if ($so_tien && isset($goi_nap[$so_tien])) {
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
+            margin-top: 30px;
         }
 
         .table th {
@@ -273,110 +361,57 @@ if ($so_tien && isset($goi_nap[$so_tien])) {
 </head>
 
 <body>
-
     <div class="wrapper">
         <?php include('test.php'); ?>
 
-
-        <!-- MAIN -->
         <div class="main">
             <div class="main-header">
-                <h2>Gói nạp</h2>
-                <a href="#" class="back">← Quay lại</a>
+                <h2>Quản lý Truyện</h2>
             </div>
 
-            <div class="steps">
-                <div class="step active">
-                    <span class="step-icon">✓</span>
-                    <div class="step-text">
-                        1. Chọn số tiền
-                    </div>
-                </div>
-
-                <div class="divider-wrap">
-                    <div class="divider"></div>
-                </div>
-
-                <div class="step active">
-                    <span class="step-icon">✓</span>
-                    <div class="step-text">
-                        2. Xác nhận
-                    </div>
-                </div>
-
-                <div class="divider-wrap">
-                    <div class="divider"></div>
-                </div>
-
-                <div class="step active">
-                    <span class="step-icon">3</span>
-                    <div class="step-text">
-                        3. Chuyển khoản
-                    </div>
-                </div>
-            </div>
-
-            <div class="tabs">
-                <div class="tab active">Chọn gói nạp</div>
-            </div>
-
-            <div class="guide">
-                ℹ️ Hướng dẫn: Chọn gói nạp bên dưới và nhấn <b>Nạp ngay</b>
+            <div class="search-box">
+                <a href="them_chuong.php" class="btn full1">Thêm Chương Mới</a>
             </div>
 
             <table class="table">
                 <thead>
                     <tr>
-                        <th>STT</th>
-                        <th>Số tiền</th>
-                        <th>Số dâu</th>
-                        <th>Số hoa (tặng)</th>
+                        <th>Số chương</th>
+                        <th>Tiêu đề</th>
+                        <th>Loại</th>
+                        <th>Giá</th>
+                        <th>Lượt xem</th>
                         <th>Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $i = 1;
-                    foreach ($goi_nap as $tien => $diem): ?>
+                    <?php while ($c = $chuongs->fetch_assoc()): ?>
                         <tr>
-                            <td><?= $i++ ?></td>
-                            <td><?= number_format($tien) ?> VND</td>
-                            <td>+ <?= number_format($diem['dau']) ?> <img src="Ảnh/emoji_u1f353.png" width="14"></td>
-                            <td>+ <?= number_format($diem['hoa']) ?> 🌸</td>
+                            <td><?= $c['so_chuong'] ?></td>
+                            <td><?= htmlspecialchars($c['tieu_de']) ?></td>
+                            <td><?= $c['la_tra_phi'] ? '<b style="color:red">VIP</b>' : 'Free' ?></td>
+                            <td><?= number_format($c['gia']) ?></td>
+                            <td><?= number_format($c['luot_xem']) ?></td>
                             <td>
-                                <a href="javascript:void(0)" class="action" data-tien="<?= $tien ?>"
-                                    onclick="napTien(this)">
-                                    Nạp ngay
-                                </a>
+                                <a href="sua_chuong.php?id=<?= $c['id'] ?>" class="btn">Sửa</a>
+                                <a href="xoa_chuong.php?id<?= $c['id'] ?>" class="btn">Xóa</a>
                             </td>
                         </tr>
-                    <?php endforeach; ?>
+                    <?php endwhile; ?>
                 </tbody>
             </table>
-
+            <!-- Pagination -->
+            <div class="pagination" style="margin-top:20px;">
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <a href="?page=<?= $i ?>&search=<?= urlencode($keyword) ?>"
+                        class="page-item <?= $i == $page ? 'active' : '' ?>">
+                        <?= $i ?>
+                    </a>
+                <?php endfor; ?>
+            </div>
         </div>
-    </div>
-    <div id="qrModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeQR()">×</span>
-            <div id="qrContent"></div>
-        </div>
-    </div>
-    <script>
-        function napTien(btn) {
-            const soTien = btn.dataset.tien;
 
-            fetch("nap_qr.php?so_tien=" + soTien)
-                .then(res => res.text())
-                .then(html => {
-                    document.getElementById("qrContent").innerHTML = html;
-                    document.getElementById("qrModal").style.display = "block";
-                });
-        }
-
-        function closeQR() {
-            document.getElementById("qrModal").style.display = "none";
-        }
-    </script>
+    </div>
 
 </body>
 

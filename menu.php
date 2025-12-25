@@ -542,7 +542,7 @@ if (session_status() === PHP_SESSION_NONE) {
                         <hr>
 
                         <li class="dropdown-item">
-                            <a href="/tai_khoan.php">Thông tin tài khoản</a>
+                            <a href="thongtin.php">Thông tin tài khoản</a>
                         </li>
 
                         <li class="dropdown-item">
@@ -554,15 +554,7 @@ if (session_status() === PHP_SESSION_NONE) {
                         </li>
 
                         <li class="dropdown-item">
-                            <a href="/follow.php">Follow</a>
-                        </li>
-
-                        <li class="dropdown-item">
-                            <a href="/yeu_thich.php">Truyện yêu thích</a>
-                        </li>
-
-                        <li class="dropdown-item">
-                            <a href="/truyen_da_mua.php">Truyện đã mua</a>
+                            <a href="truyen_yeu_thich.php">Truyện yêu thích</a>
                         </li>
 
                         <li class="dropdown-item">
@@ -572,7 +564,11 @@ if (session_status() === PHP_SESSION_NONE) {
                         <?php if ($_SESSION["vai_tro"] === "quan_tri"): ?>
                             <hr>
                             <li class="dropdown-item">
-                                <a href="/dashboard.php">⚙ Quản trị hệ thống</a>
+                                <a href="admin_nap.php">⚙ Duyệt nạp</a>
+                            </li>
+
+                            <li class="dropdown-item">
+                                <a href="admin_rut.php">⚙ Duyệt rút</a>
                             </li>
                         <?php endif; ?>
 

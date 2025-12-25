@@ -1,4 +1,7 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require 'connect.php';
 // Lấy slug từ URL
 $slug = isset($_GET['slug']) ? $_GET['slug'] : '';
@@ -54,6 +57,19 @@ if (!$truyen) {
 
 $id_truyen = $truyen['id'];
 
+$isFavorited = false;
+
+if (isset($_SESSION['user_id'])) {
+    $sqlFav = "SELECT 1 FROM truyen_yeu_thich 
+               WHERE id_nguoi_dung = ? AND id_truyen = ?";
+    $stmtFav = $conn->prepare($sqlFav);
+    $stmtFav->bind_param("ii", $_SESSION['user_id'], $id_truyen);
+    $stmtFav->execute();
+    $stmtFav->store_result();
+    $isFavorited = $stmtFav->num_rows > 0;
+}
+
+
 /* =======================
    3️⃣ LẤY DANH SÁCH CHƯƠNG
 ======================= */
@@ -95,6 +111,85 @@ $tong_chuong = count($chuong_data);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* ===== YÊU THÍCH ===== */
+        .btn-favorite {
+            background: #fff;
+            border: 2px solid #ff5fa2;
+            color: #ff5fa2;
+            padding: 10px 18px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .25s ease;
+            display: inline-flex;
+            align-items: center;
+            /* căn giữa theo chiều dọc */
+            gap: 6px;
+            /* khoảng cách icon – chữ */
+            line-height: 1;
+        }
+
+        .btn-favorite:hover {
+            background: #ff5fa2;
+            color: #fff;
+        }
+
+        .btn-favorite.active {
+            background: #ff5fa2;
+            color: #fff;
+        }
+
+        /* ===== ĐỀ CỬ ===== */
+        #btnDeCu {
+            background: #F87171;
+            border: none;
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #btnDeCu:hover {
+            opacity: 0.9;
+        }
+
+        /* Popup đề cử */
+        .popup-content h3 {
+            color: #e91e63;
+            margin-bottom: 10px;
+        }
+
+        .popup-content input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-bottom: 12px;
+        }
+
+        .popup-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .popup-actions button {
+            flex: 1;
+            padding: 8px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+        }
+
+        #xacNhanDeCu {
+            background: #ff5fa2;
+            color: #fff;
+        }
+
+        #dongPopup {
+            background: #eee;
+        }
+
         .popup {
             position: fixed;
             inset: 0;
@@ -165,7 +260,7 @@ $tong_chuong = count($chuong_data);
             max-width: 1100px;
             margin: 40px auto;
             padding: 0 20px;
-            margin-top: 95px;
+            margin-top: 135px;
         }
 
         /* Card truyện */
@@ -306,6 +401,15 @@ $tong_chuong = count($chuong_data);
             border-radius: 12px;
             text-decoration: none;
         }
+
+        .action-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            /* căn giữa ngang */
+            align-items: center;
+            /* căn giữa dọc (nếu có chiều cao) */
+        }
     </style>
 </head>
 
@@ -317,6 +421,29 @@ $tong_chuong = count($chuong_data);
         <div class="story-card">
             <div class="story-cover">
                 <img src="<?= htmlspecialchars($truyen['anh_bia']); ?>" alt="cover" />
+                <div class="action-buttons">
+                    <?php if (isset($_SESSION['user_id'])): ?>
+                        <button id="btnFavorite" class="btn-favorite <?= $isFavorited ? 'active' : '' ?>"
+                            data-favorited="<?= $isFavorited ? '1' : '0' ?>">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                class="lucide lucide-heart">
+                                <path
+                                    d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
+                                </path>
+                            </svg> <?= $isFavorited ? 'Đã yêu thích' : 'Yêu thích' ?>
+                        </button>
+                    <?php else: ?>
+                        <a href="dang_nhap.php" class="btn-favorite"><svg xmlns="http://www.w3.org/2000/svg" width="16"
+                                height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-heart">
+                                <path
+                                    d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
+                                </path>
+                            </svg> Yêu thích</a>
+                    <?php endif; ?>
+                </div>
+
             </div>
 
             <div class="story-info">
@@ -361,7 +488,13 @@ $tong_chuong = count($chuong_data);
                     <p>Chương: <?php echo $truyen['tong_chuong']; ?></p>
                     <div class="de-cu-box">
                         <?php if (isset($_SESSION['user_id'])): ?>
-                            <button id="btnDeCu">Đề cử</button>
+                            <button id="btnDeCu" class="btn-favorite"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star">
+                                    <path
+                                        d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z">
+                                    </path>
+                                </svg>Đề cử</button>
                         <?php else: ?>
                             <p><a href="dang_nhap.php">Đăng nhập</a> để đề cử</p>
                         <?php endif; ?>
@@ -520,6 +653,54 @@ $tong_chuong = count($chuong_data);
                         });
                 };
             </script>
+            <script>
+                const btnFavorite = document.getElementById('btnFavorite');
+                const heartSVG = `
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="16" height="16" viewBox="0 0 24 24"
+     class="heart-icon"
+     fill="none" stroke="currentColor"
+     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5
+             A5.5 5.5 0 0 0 16.5 3
+             c-1.76 0-3 .5-4.5 2
+             -1.5-1.5-2.74-2-4.5-2
+             A5.5 5.5 0 0 0 2 8.5
+             c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+</svg>
+`;
+
+                if (btnFavorite) {
+                    btnFavorite.addEventListener('click', () => {
+                        fetch('yeu_thich.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id_truyen: <?= $id_truyen ?>
+                            })
+                        })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (!data.success) {
+                                    alert(data.message);
+                                    return;
+                                }
+
+                                if (data.favorited) {
+                                    btnFavorite.classList.add('active');
+                                    btnFavorite.innerHTML = `${heartSVG} <span>Đã yêu thích</span>`;
+                                    btnFavorite.dataset.favorited = '1';
+                                } else {
+                                    btnFavorite.classList.remove('active');
+                                    btnFavorite.innerHTML = `${heartSVG} <span>Yêu thích</span>`;
+                                    btnFavorite.dataset.favorited = '0';
+                                }
+
+                            });
+                    });
+                }
+            </script>
+
 
         </div>
     </div>

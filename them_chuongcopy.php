@@ -1,64 +1,68 @@
 <?php include "menu.php"; ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require 'connect.php';
+require 'auth.php';
+require_login();
 
-// Lấy id truyện
-$id_truyen = isset($_GET['id_truyen']) ? intval($_GET['id_truyen']) : 0;
-if ($id_truyen <= 0) {
-    header("Location: admin_truyen.php");
-    exit;
+/* 1. Kiểm tra id chương */
+if (!isset($_GET['id'])) {
+    die("Thiếu ID chương");
 }
 
-// Lấy thông tin truyện
-$stmt = $conn->prepare("SELECT ten_truyen FROM truyen WHERE id = ?");
-$stmt->bind_param("i", $id_truyen);
+$id_chuong = (int) $_GET['id'];
+$id_user = $_SESSION['user_id'];
+
+/* 2. Lấy chương + kiểm tra quyền */
+$sql = "
+    SELECT c.*, t.id AS id_truyen
+    FROM chuong_truyen c
+    JOIN truyen t ON c.id_truyen = t.id
+    WHERE c.id = ? AND t.id_tac_gia = ?
+";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ii", $id_chuong, $id_user);
 $stmt->execute();
-$truyen = $stmt->get_result()->fetch_assoc();
-if (!$truyen)
-    die("Truyện không tồn tại.");
+$chuong = $stmt->get_result()->fetch_assoc();
 
-$error = '';
-$success = '';
-
-function createSlug($string)
-{
-    $slug = strtolower($string);
-    $slug = preg_replace('/[^a-z0-9\s-]/', '', $slug);
-    $slug = preg_replace('/[\s-]+/', '-', $slug);
-    $slug = trim($slug, '-');
-    return $slug;
+if (!$chuong) {
+    die("Chương không tồn tại hoặc bạn không có quyền");
 }
 
+/* 3. Xử lý update */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $so_chuong = intval($_POST['so_chuong']);
     $tieu_de = trim($_POST['tieu_de']);
-    $slug = trim($_POST['slug']);
     $noi_dung = trim($_POST['noi_dung']);
+
+    // checkbox: không tick thì không tồn tại trong POST
     $la_tra_phi = isset($_POST['la_tra_phi']) ? 1 : 0;
-    $gia = $la_tra_phi ? intval($_POST['gia']) : 0;
 
-    if ($so_chuong <= 0 || $tieu_de == '' || $noi_dung == '') {
-        $error = "Vui lòng điền đầy đủ thông tin.";
-    } else {
-        if ($slug == '')
-            $slug = createSlug($tieu_de);
+    // nếu không phải chương trả phí => giá = 0 (KHÔNG ĐƯỢC NULL)
+    $gia = $la_tra_phi
+        ? (isset($_POST['gia']) ? floatval($_POST['gia']) : 0)
+        : 0;
 
-        $stmt_check = $conn->prepare("SELECT id FROM chuong_truyen WHERE slug = ? LIMIT 1");
-        $stmt_check->bind_param("s", $slug);
-        $stmt_check->execute();
-        if ($stmt_check->get_result()->num_rows > 0) {
-            $error = "Slug đã tồn tại, vui lòng chọn tiêu đề hoặc slug khác.";
-        } else {
-            $stmt_insert = $conn->prepare("INSERT INTO chuong_truyen (id_truyen, so_chuong, tieu_de, slug, noi_dung, la_tra_phi, gia) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt_insert->bind_param("iisssii", $id_truyen, $so_chuong, $tieu_de, $slug, $noi_dung, $la_tra_phi, $gia);
-            if ($stmt_insert->execute()) {
-                $success = "Thêm chương thành công!";
-                $_POST = [];
-            } else {
-                $error = "Lỗi khi thêm chương: " . $conn->error;
-            }
-        }
-    }
+    $sql = "
+        UPDATE chuong_truyen
+        SET tieu_de = ?, noi_dung = ?, gia = ?, la_tra_phi = ?
+        WHERE id = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param(
+        "ssdii",
+        $tieu_de,
+        $noi_dung,
+        $gia,
+        $la_tra_phi,
+        $id_chuong
+    );
+    $stmt->execute();
+
+    header("Location: quan_ly_chuong.php?id_truyen=" . $chuong['id_truyen']);
+    exit;
 }
 ?>
 
@@ -317,40 +321,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <main class="content">
             <div class="content-header">
-                <h2>✏️ Thêm chương cho truyện: <?= htmlspecialchars($truyen['ten_truyen']) ?></h2>
+                <h2>Sửa chương <?= $chuong['so_chuong'] ?></h2>
                 <button class="btn-outline">← Quay lại</button>
             </div>
-            <?php if ($error): ?>
-                <p class="error"><?= $error ?></p><?php endif; ?>
-            <?php if ($success): ?>
-                <p class="success"><?= $success ?></p><?php endif; ?>
             <form method="post">
                 <div class="row">
-                    <div class="form-group form-truyen">
-                        <label>Số chương <span>*</span></label>
-                        <input type="number" name="so_chuong"
-                            value="<?= isset($_POST['so_chuong']) ? htmlspecialchars($_POST['so_chuong']) : '' ?>"
-                            required>
-                    </div>
-
                     <div class="form-group form-tacgia">
                         <label>Tiêu đề <span>*</span></label>
-                        <input type="text" name="tieu_de"
-                            value="<?= isset($_POST['tieu_de']) ? htmlspecialchars($_POST['tieu_de']) : '' ?>" required>
+                        <input type="text" name="tieu_de" value="<?= htmlspecialchars($chuong['tieu_de']) ?>">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Nội dung chương <span>*</span></label>
-                    <textarea name="noi_dung" rows="15"
-                        required><?= isset($_POST['noi_dung']) ? htmlspecialchars($_POST['noi_dung']) : '' ?></textarea>
+                    <textarea name="noi_dung"><?= htmlspecialchars($chuong['noi_dung']) ?></textarea>
                 </div>
 
                 <div class="row1">
                     <div class="form-group checkbox-group">
                         <label for="la_tra_phi" class="checkbox-label">
                             Chương trả phí
-                            <input type="checkbox" name="la_tra_phi" id="la_tra_phi" <?= isset($_POST['la_tra_phi']) ? 'checked' : '' ?> onchange="toggleGia()">
+                            <input type="checkbox" name="la_tra_phi" id="la_tra_phi" <?= $chuong['la_tra_phi'] ? 'checked' : '' ?> onchange="toggleGia()">
                             <span class="checkmark"></span>
                         </label>
                     </div>
@@ -358,9 +349,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <div class="form-group">
                         <label>Giá (áp dụng nếu là chương trả phí)</label>
-                        <input type="number" name="gia" id="gia"
-                            value="<?= isset($_POST['gia']) ? htmlspecialchars($_POST['gia']) : '0' ?>" min="0"
-                            <?= isset($_POST['la_tra_phi']) ? '' : 'disabled' ?>>
+                        <input type="number" name="gia" id="gia" value="<?= htmlspecialchars($chuong['gia']) ?>" min="0"
+                            <?= $chuong['la_tra_phi'] ? '' : 'disabled' ?>>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -372,6 +362,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>toggleGia();</script>
+    <script>
+        const checkbox = document.getElementById('la_tra_phi');
+        const giaInput = document.getElementById('gia');
+
+        checkbox.addEventListener('change', function () {
+            if (this.checked) {
+                giaInput.disabled = false;
+            } else {
+                giaInput.value = 0;
+                giaInput.disabled = true;
+            }
+        });
+    </script>
+
 </body>
 
 </html>

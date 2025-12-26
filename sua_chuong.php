@@ -1,4 +1,3 @@
-<?php include "menu.php"; ?>
 <?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -61,10 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     $stmt->execute();
 
-    header("Location: quan_ly_chuong.php?id_truyen=" . $chuong['id_truyen']);
+    header("Location: sua_chuong.php?id=" . $id_chuong . "&updated=1");
+
     exit;
 }
 ?>
+<?php include "menu.php"; ?>
 
 <!DOCTYPE html>
 <html lang="vi">
@@ -189,8 +190,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         textarea {
-            height: 120px;
-            resize: none;
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
         }
 
         .row {

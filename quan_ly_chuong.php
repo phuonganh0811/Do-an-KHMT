@@ -5,24 +5,24 @@ require 'auth.php';
 require_login();
 
 /* 1. Nhận id_truyen */
-if (!isset($_GET['id_truyen'])) {
+$id_truyen = isset($_GET['id_truyen']) ? (int) $_GET['id_truyen'] : 0;
+if ($id_truyen <= 0) {
     die("Thiếu ID truyện");
 }
 
-$id_truyen = (int) $_GET['id_truyen'];
-$id_tac_gia = $_SESSION['user_id'];
+$id_tac_gia = (int) $_SESSION['user_id'];
 
 /* 2. Search chương */
-$keyword = isset($_GET['search']) ? trim($_GET['search']) : '';
+$keyword = trim($_GET['search'] ?? '');
 
 /* 3. Pagination */
 $perPage = 20;
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
 $offset = ($page - 1) * $perPage;
 
 /* 4. Đếm tổng chương */
 $sql_count = "
-    SELECT COUNT(*) as total
+    SELECT COUNT(*) AS total
     FROM chuong_truyen ct
     INNER JOIN truyen t ON t.id = ct.id_truyen
     WHERE ct.id_truyen = ?
@@ -30,11 +30,18 @@ $sql_count = "
       AND ct.tieu_de LIKE ?
 ";
 $stmt = $conn->prepare($sql_count);
-$like = "%$keyword%";
+$like = '%' . $keyword . '%';
 $stmt->bind_param("iis", $id_truyen, $id_tac_gia, $like);
 $stmt->execute();
-$totalRows = $stmt->get_result()->fetch_assoc()['total'];
-$totalPages = ceil($totalRows / $perPage);
+$row = $stmt->get_result()->fetch_assoc();
+$totalRows = (int) ($row['total'] ?? 0);
+$totalPages = max(1, ceil($totalRows / $perPage));
+
+/* ⚠️ Chặn page vượt giới hạn */
+if ($page > $totalPages) {
+    $page = $totalPages;
+    $offset = ($page - 1) * $perPage;
+}
 
 /* 5. Lấy danh sách chương (CÓ LIMIT) */
 $sql = "
@@ -59,7 +66,6 @@ $stmt->bind_param("iisii", $id_truyen, $id_tac_gia, $like, $offset, $perPage);
 $stmt->execute();
 $chuongs = $stmt->get_result();
 ?>
-
 
 <!DOCTYPE html>
 <html lang="vi">
@@ -401,14 +407,27 @@ $chuongs = $stmt->get_result();
                 </tbody>
             </table>
             <!-- Pagination -->
-            <div class="pagination" style="margin-top:20px;">
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                    <a href="?page=<?= $i ?>&search=<?= urlencode($keyword) ?>"
-                        class="page-item <?= $i == $page ? 'active' : '' ?>">
-                        <?= $i ?>
-                    </a>
-                <?php endfor; ?>
-            </div>
+
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination" style="margin-top:20px;">
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <?php
+                        $url = "?id_truyen=$id_truyen";
+                        if ($i > 1) {
+                            $url .= "&page=$i";
+                        }
+                        if ($keyword !== '') {
+                            $url .= "&search=" . urlencode($keyword);
+                        }
+                        ?>
+                        <a href="<?= $url ?>" class="page-item <?= $i == $page ? 'active' : '' ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php endfor; ?>
+                </div>
+            <?php endif; ?>
+
+
         </div>
 
     </div>

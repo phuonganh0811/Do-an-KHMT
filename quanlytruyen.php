@@ -5,26 +5,36 @@ require 'auth.php';
 require_login();
 
 // Lấy ID tác giả hiện tại
-$id_tac_gia = $_SESSION['user_id']; // giả sử session lưu user_id
+$id_tac_gia = (int) $_SESSION['user_id'];
 
 // Search truyện
-$keyword = isset($_GET['search']) ? trim($_GET['search']) : '';
+$keyword = trim($_GET['search'] ?? '');
 
 // Pagination
 $perPage = 20;
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
 $offset = ($page - 1) * $perPage;
 
 // Query tổng số truyện
-$sql_count = "SELECT COUNT(*) as total FROM truyen t 
-LEFT JOIN nguoi_dung nd ON t.id_tac_gia = nd.id
-WHERE t.ten_truyen LIKE ? AND t.id_tac_gia = ?";
+$sql_count = "
+    SELECT COUNT(DISTINCT t.id) AS total
+    FROM truyen t
+    WHERE t.ten_truyen LIKE ? 
+      AND t.id_tac_gia = ?
+";
 $stmt_count = $conn->prepare($sql_count);
-$like = "%$keyword%";
+$like = '%' . $keyword . '%';
 $stmt_count->bind_param("si", $like, $id_tac_gia);
 $stmt_count->execute();
-$totalRows = $stmt_count->get_result()->fetch_assoc()['total'];
-$totalPages = ceil($totalRows / $perPage);
+$row = $stmt_count->get_result()->fetch_assoc();
+$totalRows = (int) ($row['total'] ?? 0);
+$totalPages = max(1, ceil($totalRows / $perPage));
+
+// ⚠️ Chặn page vượt giới hạn
+if ($page > $totalPages) {
+    $page = $totalPages;
+    $offset = ($page - 1) * $perPage;
+}
 
 // Query danh sách truyện
 $sql = "
@@ -44,7 +54,8 @@ LEFT JOIN nguoi_dung nd ON t.id_tac_gia = nd.id
 LEFT JOIN truyen_the_loai ttl ON ttl.id_truyen = t.id
 LEFT JOIN the_loai tl ON tl.id = ttl.id_the_loai
 LEFT JOIN chuong_truyen ct ON ct.id_truyen = t.id
-WHERE t.ten_truyen LIKE ? AND t.id_tac_gia = ?
+WHERE t.ten_truyen LIKE ? 
+  AND t.id_tac_gia = ?
 GROUP BY t.id
 ORDER BY t.ngay_tao DESC
 LIMIT ?, ?
@@ -56,6 +67,7 @@ $stmt->execute();
 $truyen_list = $stmt->get_result();
 ?>
 
+
 <!DOCTYPE html>
 <html lang="vi">
 
@@ -63,9 +75,10 @@ $truyen_list = $stmt->get_result();
     <meta charset="UTF-8">
     <title>Quản lý truyện</title>
     <style>
-        .user-stats h4{
+        .user-stats h4 {
             margin-bottom: 20px;
         }
+
         .truyen-link {
             color: #ff6fae;
             font-weight: 600;
@@ -411,14 +424,25 @@ $truyen_list = $stmt->get_result();
                 </tbody>
             </table>
             <!-- Pagination -->
-            <div class="pagination" style="margin-top:20px;">
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                    <a href="?page=<?= $i ?>&search=<?= urlencode($keyword) ?>"
-                        class="page-item <?= $i == $page ? 'active' : '' ?>">
-                        <?= $i ?>
-                    </a>
-                <?php endfor; ?>
-            </div>
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination" style="margin-top:20px;">
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <?php
+                        $url = '';
+                        if ($i > 1) {
+                            $url = "?page=$i";
+                        }
+                        if ($keyword !== '') {
+                            $url .= ($url === '' ? '?' : '&') . "search=" . urlencode($keyword);
+                        }
+                        ?>
+                        <a href="<?= $url ?>" class="page-item <?= $i == $page ? 'active' : '' ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php endfor; ?>
+                </div>
+            <?php endif; ?>
+
         </div>
 
     </div>

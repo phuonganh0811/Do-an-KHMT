@@ -2,6 +2,22 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+require_once 'connect.php';
+
+$id = $_SESSION['user_id'] ?? 0;
+$ten_hien_thi = 'Tài khoản';
+
+if ($id > 0) {
+    $stmt = $conn->prepare("SELECT ten_hien_thi FROM nguoi_dung WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    if ($row && $row['ten_hien_thi']) {
+        $ten_hien_thi = $row['ten_hien_thi'];
+        $_SESSION['ten_hien_thi'] = $ten_hien_thi; // đồng bộ lại session
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -533,7 +549,7 @@ if (session_status() === PHP_SESSION_NONE) {
                     <!-- Dropdown -->
                     <ul class="dropdown1">
                         <li class="dropdown2">
-                            <strong><?= htmlspecialchars($_SESSION["ten_hien_thi"]) ?></strong>
+                            <strong><?= htmlspecialchars($ten_hien_thi) ?></strong>
                         </li>
                         <li class="dropdown3">
                             <?= htmlspecialchars($_SESSION["email"] ?? '') ?>
@@ -561,6 +577,10 @@ if (session_status() === PHP_SESSION_NONE) {
                             <a href="nap_diem.php">Nạp</a>
                         </li>
 
+                        <li class="dropdown-item">
+                            <a href="rut_tien.php">Rút</a>
+                        </li>
+
                         <?php if ($_SESSION["vai_tro"] === "quan_tri"): ?>
                             <hr>
                             <li class="dropdown-item">
@@ -569,6 +589,10 @@ if (session_status() === PHP_SESSION_NONE) {
 
                             <li class="dropdown-item">
                                 <a href="admin_rut.php">⚙ Duyệt rút</a>
+                            </li>
+
+                            <li class="dropdown-item">
+                                <a href="admin_doanhthu.php">⚙ Doanh thu</a>
                             </li>
                         <?php endif; ?>
 

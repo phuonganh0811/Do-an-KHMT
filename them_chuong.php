@@ -1,11 +1,10 @@
-<?php include "menu.php"; ?>
 <?php
 require 'connect.php';
-
+session_start();
 // Lấy id truyện
 $id_truyen = isset($_GET['id_truyen']) ? intval($_GET['id_truyen']) : 0;
 if ($id_truyen <= 0) {
-    header("Location: admin_truyen.php");
+    header("Location: quanlytruyen.php");
     exit;
 }
 
@@ -32,7 +31,7 @@ function createSlug($string)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $so_chuong = intval($_POST['so_chuong']);
     $tieu_de = trim($_POST['tieu_de']);
-    $slug = trim($_POST['slug']);
+    $slug = trim($_POST['slug'] ?? '');
     $noi_dung = trim($_POST['noi_dung']);
     $la_tra_phi = isset($_POST['la_tra_phi']) ? 1 : 0;
     $gia = $la_tra_phi ? intval($_POST['gia']) : 0;
@@ -52,8 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_insert = $conn->prepare("INSERT INTO chuong_truyen (id_truyen, so_chuong, tieu_de, slug, noi_dung, la_tra_phi, gia) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt_insert->bind_param("iisssii", $id_truyen, $so_chuong, $tieu_de, $slug, $noi_dung, $la_tra_phi, $gia);
             if ($stmt_insert->execute()) {
-                $success = "Thêm chương thành công!";
-                $_POST = [];
+                header("Location: them_chuong.php?id_truyen=" . $id_truyen);
+                exit;
             } else {
                 $error = "Lỗi khi thêm chương: " . $conn->error;
             }
@@ -61,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
+<?php include "menu.php"; ?>
 <!DOCTYPE html>
 <html lang="vi">
 

@@ -8,6 +8,7 @@ SELECT
     t.id,
     t.ten_truyen,
     t.anh_bia,
+    t.trang_thai,
     t.slug,
     t.ngay_cap_nhat,
     COUNT(ct.id) AS tong_chuong,
@@ -26,6 +27,7 @@ SELECT
     t.id,
     t.ten_truyen,
     t.anh_bia,
+    t.trang_thai,
     t.slug,
     t.ngay_cap_nhat,
     COUNT(ct.id) AS tong_chuong,
@@ -43,6 +45,7 @@ SELECT
     t.id,
     t.ten_truyen,
     t.anh_bia,
+    t.trang_thai,
     t.slug,
     t.ngay_cap_nhat,
     t.diem_de_cu,
@@ -359,6 +362,7 @@ $result_de_cu = $conn->query($sql_de_cu);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             border-radius: 12px;
+            position: relative;
             margin-bottom: 15px;
         }
 
@@ -463,6 +467,17 @@ $result_de_cu = $conn->query($sql_de_cu);
 
         .wrapper1 {
             position: relative;
+            overflow: hidden;
+        }
+
+        .truyen-card img.full-tag {
+            width: 34px !important;
+            height: 46px !important;
+            object-fit: contain;
+            position: absolute;
+            left: -4px;
+            bottom: 20px;
+            z-index: 1;
         }
 
         .time-tag {
@@ -719,6 +734,9 @@ $result_de_cu = $conn->query($sql_de_cu);
                             <a href="truyen.php?slug=<?php echo $row['slug']; ?>">
                                 <img src="<?php echo $row['anh_bia']; ?>" alt="<?php echo $row['ten_truyen']; ?>">
                             </a>
+                            <?php if ($row['trang_thai'] === 'hoan_thanh'): ?>
+                                <img src="Ảnh/full_tag.webp" alt="FULL" class="full-tag">
+                            <?php endif; ?>
                             <div class="time-tag"><?= timeAgo($row['ngay_cap_nhat']); ?></div>
                         </div>
 
@@ -800,7 +818,9 @@ $result_de_cu = $conn->query($sql_de_cu);
                             <a href="truyen.php?slug=<?php echo $row['slug']; ?>">
                                 <img src="<?php echo $row['anh_bia']; ?>" alt="<?php echo $row['ten_truyen']; ?>">
                             </a>
-
+                            <?php if ($row['trang_thai'] === 'hoan_thanh'): ?>
+                                <img src="Ảnh/full_tag.webp" alt="FULL" class="full-tag">
+                            <?php endif; ?>
                             <?php if ($top <= 3) { ?>
                                 <div class="tag">Top <?php echo $top; ?></div>
                             <?php } ?>
@@ -879,6 +899,9 @@ $result_de_cu = $conn->query($sql_de_cu);
                         <div class="wrapper1">
                             <img src="<?= $row['anh_bia'] ?: 'no-image.jpg' ?>"
                                 alt="<?= htmlspecialchars($row['ten_truyen']) ?>">
+                            <?php if ($row['trang_thai'] === 'hoan_thanh'): ?>
+                                <img src="Ảnh/full_tag.webp" alt="FULL" class="full-tag">
+                            <?php endif; ?>
                             <div class="time-tag">
                                 <?= timeAgo($row['ngay_cap_nhat']) ?>
                             </div>
@@ -886,13 +909,13 @@ $result_de_cu = $conn->query($sql_de_cu);
 
                         <div class="truyen-info">
                             <h3>
-                                <a href="truyen.php?slug=<?= $row['slug'] ?>">
-                                    <?= htmlspecialchars($row['ten_truyen']) ?>
+                                <a href="truyen.php?slug=<?= urlencode($row['slug']); ?>" class="truyen-link">
+                                    <?= htmlspecialchars($row['ten_truyen']); ?>
                                 </a>
                             </h3>
 
                             <div class="truyen-stats">
-                            <div class="st1">
+                                <div class="st1">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                                         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                         stroke-linejoin="round" class="lucide lucide-book-open-check">

@@ -3,7 +3,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require 'connect.php';
-// Lấy slug từ URL
+
+/* =======================
+   1️⃣ LẤY SLUG
+======================= */
 $slug = isset($_GET['slug']) ? $_GET['slug'] : '';
 if ($slug == '') {
     die("Truyện không tồn tại!");
@@ -11,11 +14,6 @@ if ($slug == '') {
 
 /* =======================
    2️⃣ LẤY THÔNG TIN TRUYỆN
-   - tên truyện
-   - tác giả (nguoi_dung)
-   - thể loại
-   - tổng số chương
-   - tổng lượt xem (SUM chương)
 ======================= */
 $sql_truyen = "
 SELECT 
@@ -41,11 +39,13 @@ LEFT JOIN the_loai tl ON tl.id = ttl.id_the_loai
 WHERE t.slug = ?
 GROUP BY t.id
 ";
+
 $mapTrangThai = [
     'dang_ra' => 'Đang ra',
     'hoan_thanh' => 'Hoàn thành',
     'tam_dung' => 'Tạm ngừng'
 ];
+
 $stmt = $conn->prepare($sql_truyen);
 $stmt->bind_param("s", $slug);
 $stmt->execute();
@@ -57,8 +57,35 @@ if (!$truyen) {
 
 $id_truyen = $truyen['id'];
 
-$isFavorited = false;
+/* =======================
+   3️⃣ XỬ LÝ GỬI BÌNH LUẬN
+======================= */
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    isset($_POST['add_comment']) &&
+    isset($_SESSION['user_id'])
+) {
+    $content = trim($_POST['content']);
+    $parent_id = isset($_POST['parent_id']) && $_POST['parent_id'] !== ''
+        ? (int) $_POST['parent_id']
+        : 0;
 
+    if ($content !== '') {
+        $sql = "INSERT INTO comments (truyen_id, user_id, parent_id, content)
+                VALUES (?, ?, ?, ?)";
+        $stmtC = $conn->prepare($sql);
+        $stmtC->bind_param("iiis", $id_truyen, $_SESSION['user_id'], $parent_id, $content);
+        $stmtC->execute();
+    }
+
+    header("Location: truyen.php?slug=" . urlencode($slug));
+    exit;
+}
+
+/* =======================
+   4️⃣ KIỂM TRA YÊU THÍCH
+======================= */
+$isFavorited = false;
 if (isset($_SESSION['user_id'])) {
     $sqlFav = "SELECT 1 FROM truyen_yeu_thich 
                WHERE id_nguoi_dung = ? AND id_truyen = ?";
@@ -69,9 +96,8 @@ if (isset($_SESSION['user_id'])) {
     $isFavorited = $stmtFav->num_rows > 0;
 }
 
-
 /* =======================
-   3️⃣ LẤY DANH SÁCH CHƯƠNG
+   5️⃣ LẤY DANH SÁCH CHƯƠNG
 ======================= */
 $sql_chuong = "
 SELECT 
@@ -98,6 +124,116 @@ while ($row = $ds_chuong->fetch_assoc()) {
 }
 
 $tong_chuong = count($chuong_data);
+
+/* =======================
+   6️⃣ LẤY BÌNH LUẬN
+======================= */
+$sql_comment = "
+SELECT 
+    c.id,
+    c.parent_id,
+    c.content,
+    c.created_at,
+    nd.ten_hien_thi,
+    nd.avatar
+FROM comments c
+JOIN nguoi_dung nd ON c.user_id = nd.id
+WHERE c.truyen_id = ?
+ORDER BY c.created_at ASC
+";
+
+
+$stmtCM = $conn->prepare($sql_comment);
+$stmtCM->bind_param("i", $id_truyen);
+$stmtCM->execute();
+$rsCM = $stmtCM->get_result();
+
+$comments = [];
+while ($row = $rsCM->fetch_assoc()) {
+    $pid = $row['parent_id'] ?? 0;
+    $comments[$pid][] = $row;
+}
+
+$tong_binh_luan = array_sum(array_map('count', $comments));
+
+
+/* =======================
+   7️⃣ HÀM HIỂN THỊ BÌNH LUẬN
+======================= */
+function renderComments($parent_id, $comments)
+{
+    if (!isset($comments[$parent_id]))
+        return;
+
+    foreach ($comments[$parent_id] as $c):
+
+        $replyCount = isset($comments[$c['id']]) ? count($comments[$c['id']]) : 0;
+        ?>
+
+        <div class="comment <?= $parent_id != 0 ? 'reply' : '' ?>">
+
+            <!-- AVATAR -->
+            <div class="comment-avatar">
+                <img src="<?= !empty($c['avatar'])
+                    ? htmlspecialchars($c['avatar'])
+                    : 'assets/avatar-default.png' ?>">
+            </div>
+
+            <!-- NỘI DUNG -->
+            <div class="comment-content">
+
+                <div class="comment-header">
+                    <div class="comment-name">
+                        <?= htmlspecialchars($c['ten_hien_thi']) ?>
+                    </div>
+                    <div class="comment-time">
+                        <?= date('d/m/Y H:i', strtotime($c['created_at'])) ?>
+                    </div>
+                </div>
+
+                <div class="comment-text">
+                    <?= nl2br(htmlspecialchars($c['content'])) ?>
+                </div>
+
+                <!-- NÚT TRẢ LỜI -->
+                <div class="reply-btn" onclick="toggleReplies(<?= $c['id'] ?>)">
+                    Trả lời<?= $replyCount > 0 ? " ($replyCount)" : "" ?>
+                </div>
+
+                <!-- ====== WRAPPER ẨN/HIỆN ====== -->
+                <div class="reply-wrapper" id="replies-<?= $c['id'] ?>">
+
+                    <!-- DANH SÁCH REPLY (Ở TRÊN) -->
+                    <div class="reply-list">
+                        <?php renderComments($c['id'], $comments); ?>
+                    </div>
+
+                    <!-- FORM TRẢ LỜI (Ở DƯỚI) -->
+                    <?php if (isset($_SESSION['user_id'])): ?>
+                        <form method="post" class="reply-form">
+                            <input type="hidden" name="parent_id" value="<?= $c['id'] ?>">
+
+                            <textarea name="content" placeholder="Nhập nội dung trả lời..." required></textarea>
+
+                            <div class="comment-actions">
+                                <button type="button" class="btn-cancel" onclick="toggleReplies(<?= $c['id'] ?>)">
+                                    Hủy
+                                </button>
+
+                                <button type="submit" name="add_comment" class="btn-submit">
+                                    Trả lời
+                                </button>
+                            </div>
+                        </form>
+                    <?php endif; ?>
+
+                </div>
+            </div>
+        </div>
+
+        <?php
+    endforeach;
+}
 ?>
 <?php include "menu.php"; ?>
 <!DOCTYPE html>
@@ -123,6 +259,7 @@ $tong_chuong = count($chuong_data);
             gap: 6px;
             /* khoảng cách icon – chữ */
             line-height: 1;
+            text-decoration: none;
         }
 
         .btn-favorite:hover {
@@ -406,6 +543,201 @@ $tong_chuong = count($chuong_data);
             align-items: center;
             /* căn giữa dọc (nếu có chiều cao) */
         }
+
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        /* ===== KHUNG COMMENT ===== */
+        .comment-box {
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
+            padding: 20px;
+            max-width: 100%;
+        }
+
+        /* TIÊU ĐỀ */
+        .comment-title {
+            color: #ff5fa2;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 18px;
+        }
+
+        /* ===== COMMENT LIST ===== */
+        .comment-list {
+            margin-bottom: 20px;
+            margin-left: 20px;
+        }
+
+        /* ===== COMMENT ===== */
+        .comment {
+            display: flex;
+            gap: 12px;
+            padding: 12px 0;
+        }
+
+        .comment+.comment {
+            border-top: 1px solid #f2f2f2;
+        }
+
+        /* COMMENT REPLY (LỒNG) */
+        .comment.reply {
+            padding-left: 12px;
+            border-left: 2px solid #ffe0ed;
+        }
+
+        /* ===== AVATAR ===== */
+        .comment-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #eee;
+            flex-shrink: 0;
+        }
+
+        .comment-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* ===== NỘI DUNG ===== */
+        .comment-content {
+            flex: 1;
+        }
+
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .comment-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .comment-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .comment-text {
+            font-size: 14px;
+            margin: 6px 0;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* ===== NÚT TRẢ LỜI ===== */
+        .reply-btn {
+            font-size: 13px;
+            color: #ff5fa2;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 4px;
+        }
+
+        .reply-btn:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== FORM BÌNH LUẬN / TRẢ LỜI ===== */
+        .write-comment,
+        .reply-form {
+            margin-top: 12px;
+        }
+
+        /* .reply-form {
+            display: none;
+        } */
+
+        /* TEXTAREA */
+        .write-comment textarea,
+        .reply-form textarea {
+            width: 100%;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            min-height: 70px;
+        }
+
+        .write-comment textarea::placeholder,
+        .reply-form textarea::placeholder {
+            color: #bbb;
+        }
+
+        /* ===== ACTIONS ===== */
+        .comment-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        /* ===== BUTTON ===== */
+        .btn-cancel {
+            background: #f3f3f3;
+            color: #555;
+            border-radius: 8px;
+            padding: 6px 14px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-submit {
+            background: #ff5fa2;
+            color: #fff;
+            border-radius: 8px;
+            padding: 6px 16px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .btn-submit:hover {
+            opacity: .9;
+        }
+
+        /* ===== NO COMMENT ===== */
+        .no-comment {
+            text-align: center;
+            padding: 30px 10px;
+        }
+
+        .no-comment img {
+            width: 160px;
+            opacity: .9;
+            margin-bottom: 10px;
+        }
+
+        .no-comment .title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .no-comment .sub {
+            font-size: 14px;
+            color: #999;
+        }
+
+        .reply-wrapper {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .reply-list {
+            padding-left: 0;
+            border-left: none;
+        }
     </style>
 </head>
 
@@ -484,15 +816,15 @@ $tong_chuong = count($chuong_data);
                     <p>Chương: <?php echo $truyen['tong_chuong']; ?></p>
                     <div class="de-cu-box">
                         <?php if (isset($_SESSION['user_id'])): ?>
-                            <button id="btnDeCu" class="btn-favorite"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            <button id="btnDeCu" class="btn-favorite"><svg xmlns="http://www.w3.org/2000/svg" width="20"
+                                    height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star">
                                     <path
                                         d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z">
                                     </path>
                                 </svg>Đề cử</button>
                         <?php else: ?>
-                            <p><a href="dang_nhap.php">Đăng nhập</a> để đề cử</p>
+
                         <?php endif; ?>
                     </div>
 
@@ -699,6 +1031,56 @@ $tong_chuong = count($chuong_data);
 
 
         </div>
+        <div class="comment-box">
+            <div class="comment-title">
+                💬 Bình luận (<?= $tong_binh_luan ?>)
+            </div>
+
+            <?php if ($tong_binh_luan == 0): ?>
+                <div class="no-comment">
+                    <img src="Ảnh/no-data.webp">
+                    <p class="title">Chưa có bình luận!</p>
+                    <p class="sub">Hãy là người đầu tiên bình luận truyện!</p>
+                </div>
+            <?php else: ?>
+                <div class="comment-list">
+                    <?php renderComments(0, $comments); ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- KHUNG VIẾT BÌNH LUẬN GỐC (LUÔN HIỆN) -->
+            <div class="write-comment">
+                <?php if (isset($_SESSION['user_id'])): ?>
+                    <form method="post">
+                        <textarea name="content" placeholder="Nội dung bình luận..." required></textarea>
+                        <input type="hidden" name="parent_id" value="0">
+                        <div class="comment-actions">
+                            <button type="reset" class="btn-cancel">Hủy bỏ</button>
+                            <button type="submit" name="add_comment" class="btn-submit">Bình luận</button>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <textarea placeholder="Đăng nhập để bình luận..." readonly
+                        onclick="window.location='dang_nhap.php'"></textarea>
+                    <div class="comment-actions">
+                        <a href="dang_nhap.php" class="btn-submit">Bình luận</a>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+
+        <script>
+            function toggleReplies(id) {
+                const el = document.getElementById('replies-' + id);
+                if (!el) return;
+                el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+            }
+        </script>
+
+
+
+
     </div>
 </body>
 

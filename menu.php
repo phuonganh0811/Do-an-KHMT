@@ -584,6 +584,10 @@ if ($id > 0) {
                         <?php if ($_SESSION["vai_tro"] === "quan_tri"): ?>
                             <hr>
                             <li class="dropdown-item">
+                                <a href="quanlytruyenadmin.php">⚙ Quản lý truyện</a>
+                            </li>
+                            
+                            <li class="dropdown-item">
                                 <a href="admin_nap.php">⚙ Duyệt nạp</a>
                             </li>
 
@@ -594,6 +598,7 @@ if ($id > 0) {
                             <li class="dropdown-item">
                                 <a href="admin_doanhthu.php">⚙ Doanh thu</a>
                             </li>
+
                         <?php endif; ?>
 
                         <hr>

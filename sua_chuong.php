@@ -7,46 +7,86 @@ require 'connect.php';
 require 'auth.php';
 require_login();
 
-/* 1. Kiểm tra id chương */
+/* =========================
+   1. Kiểm tra ID chương
+========================= */
 if (!isset($_GET['id'])) {
     die("Thiếu ID chương");
 }
 
-$id_chuong = (int) $_GET['id'];
-$id_user = $_SESSION['user_id'];
+$id_chuong = (int)$_GET['id'];
+$id_user   = (int)$_SESSION['user_id'];
 
-/* 2. Lấy chương + kiểm tra quyền */
-$sql = "
-    SELECT c.*, t.id AS id_truyen
-    FROM chuong_truyen c
-    JOIN truyen t ON c.id_truyen = t.id
-    WHERE c.id = ? AND t.id_tac_gia = ?
-";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ii", $id_chuong, $id_user);
+/* =========================
+   2. Lấy vai trò user
+========================= */
+$stmtRole = $conn->prepare("
+    SELECT vai_tro 
+    FROM nguoi_dung 
+    WHERE id = ?
+");
+$stmtRole->bind_param("i", $id_user);
+$stmtRole->execute();
+$user = $stmtRole->get_result()->fetch_assoc();
+
+$isAdmin = ($user && $user['vai_tro'] === 'quan_tri');
+
+/* =========================
+   3. Lấy chương + kiểm tra quyền
+   - Admin: sửa tất cả
+   - Tác giả: chỉ sửa chương truyện của mình
+========================= */
+if ($isAdmin) {
+    // ADMIN: lấy chương không cần check tác giả
+    $sql = "
+        SELECT c.*, t.id AS id_truyen, t.id_tac_gia
+        FROM chuong_truyen c
+        JOIN truyen t ON c.id_truyen = t.id
+        WHERE c.id = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $id_chuong);
+} else {
+    // TÁC GIẢ: chỉ được sửa chương truyện của mình
+    $sql = "
+        SELECT c.*, t.id AS id_truyen, t.id_tac_gia
+        FROM chuong_truyen c
+        JOIN truyen t ON c.id_truyen = t.id
+        WHERE c.id = ? AND t.id_tac_gia = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ii", $id_chuong, $id_user);
+}
+
 $stmt->execute();
 $chuong = $stmt->get_result()->fetch_assoc();
 
 if (!$chuong) {
-    die("Chương không tồn tại hoặc bạn không có quyền");
+    die("Chương không tồn tại hoặc bạn không có quyền chỉnh sửa");
 }
 
-/* 3. Xử lý update */
+/* =========================
+   4. Xử lý cập nhật
+========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tieu_de = trim($_POST['tieu_de']);
+    $tieu_de  = trim($_POST['tieu_de']);
     $noi_dung = trim($_POST['noi_dung']);
 
-    // checkbox: không tick thì không tồn tại trong POST
+    // checkbox
     $la_tra_phi = isset($_POST['la_tra_phi']) ? 1 : 0;
 
-    // nếu không phải chương trả phí => giá = 0 (KHÔNG ĐƯỢC NULL)
+    // nếu không trả phí → giá = 0
     $gia = $la_tra_phi
         ? (isset($_POST['gia']) ? floatval($_POST['gia']) : 0)
         : 0;
 
     $sql = "
         UPDATE chuong_truyen
-        SET tieu_de = ?, noi_dung = ?, gia = ?, la_tra_phi = ?
+        SET 
+            tieu_de = ?, 
+            noi_dung = ?, 
+            gia = ?, 
+            la_tra_phi = ?
         WHERE id = ?
     ";
     $stmt = $conn->prepare($sql);
@@ -61,7 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
 
     header("Location: sua_chuong.php?id=" . $id_chuong . "&updated=1");
-
     exit;
 }
 ?>

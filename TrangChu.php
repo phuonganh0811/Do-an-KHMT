@@ -1,460 +1,99 @@
 <?php
 require 'connect.php';
 require 'time.php';
-require 'modules/truyen.php';
-$sql = "SELECT id, ten_truyen, anh_bia, slug, ngay_cap_nhat FROM truyen ORDER BY id DESC";
-$truyens1 = $conn->query($sql);
+session_start();
 
-$truyens = getTruyenMoiCapNhat($conn, 6);
+/* =========================
+   1. Kiểm tra quyền admin
+   ========================= */
+$isAdmin = false;
+if (isset($_SESSION['user_id'])) {
+    $stmt = $conn->prepare("SELECT vai_tro FROM nguoi_dung WHERE id = ?");
+    $stmt->bind_param("i", $_SESSION['user_id']);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    if ($user && $user['vai_tro'] === 'quan_tri') {
+        $isAdmin = true;
+    }
+}
+
+/* =========================
+   2. Lấy banner slider
+   ========================= */
+$sql_banner = "
+    SELECT id, title, description, image, link
+    FROM banner_slides
+    WHERE is_active = 1
+    ORDER BY sort_order ASC
+";
+$banners = $conn->query($sql_banner)->fetch_all(MYSQLI_ASSOC);
+
+/* =========================
+   3. Truyện mới cập nhật
+   ========================= */
+$sql = "
+SELECT 
+    t.id,
+    t.ten_truyen,
+    t.anh_bia,
+    t.trang_thai,
+    t.slug,
+    t.ngay_cap_nhat,
+    COUNT(ct.id) AS tong_chuong,
+    IFNULL(SUM(ct.luot_xem), 0) AS tong_luot_xem
+FROM truyen t
+LEFT JOIN chuong_truyen ct ON ct.id_truyen = t.id
+GROUP BY t.id
+ORDER BY t.ngay_cap_nhat DESC
+LIMIT 16
+";
+$truyens = $conn->query($sql);
+
+/* =========================
+   4. Truyện nhiều lượt xem
+   ========================= */
+$sql_view = "
+SELECT 
+    t.id,
+    t.ten_truyen,
+    t.anh_bia,
+    t.trang_thai,
+    t.slug,
+    t.ngay_cap_nhat,
+    COUNT(ct.id) AS tong_chuong,
+    IFNULL(SUM(ct.luot_xem), 0) AS tong_luot_xem
+FROM truyen t
+LEFT JOIN chuong_truyen ct ON ct.id_truyen = t.id
+GROUP BY t.id
+ORDER BY tong_luot_xem DESC
+LIMIT 16
+";
+$result_view = $conn->query($sql_view);
+
+/* =========================
+   5. Truyện đề cử cao
+   ========================= */
+$sql_de_cu = "
+SELECT 
+    t.id,
+    t.ten_truyen,
+    t.anh_bia,
+    t.trang_thai,
+    t.slug,
+    t.ngay_cap_nhat,
+    t.diem_de_cu,
+    COUNT(DISTINCT ct.id) AS tong_chuong,
+    IFNULL(SUM(ct.luot_xem), 0) AS tong_luot_xem
+FROM truyen t
+LEFT JOIN chuong_truyen ct ON ct.id_truyen = t.id
+GROUP BY t.id
+ORDER BY t.diem_de_cu DESC
+LIMIT 16
+";
+$result_de_cu = $conn->query($sql_de_cu);
 ?>
 
-<!DOCTYPE html>
-<html lang="vi">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZhihuComic - Trang chủ</title>
-    <style>
-        /* Import font Segoe UI (nếu cần, hoặc dùng font hệ thống) */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .a1 {
-            font-weight: 600;
-        }
-
-        /* CSS cho header */
-        .header {
-            position: fixed;
-            top: 0;
-            width: 100%;
-            background: white;
-            box-sizing: border-box;
-            padding: 6px 24px 6px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            /* shadow-lg */
-            z-index: 30;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            /* gap-6 */
-        }
-
-        .logo {
-            height: 100%;
-            padding: 0.5rem 0;
-            /* py-2 */
-        }
-
-        .logo img {
-            height: 100%;
-            cursor: pointer;
-        }
-
-        /* Banner di chuyển (tích hợp PHP) */
-        .banner {
-            width: 100%;
-            overflow: hidden;
-            background: #f0f0f0;
-            white-space: nowrap;
-            padding: 10px 0;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .banner-content {
-            display: inline-block;
-            animation: scroll 15s linear infinite;
-            /* Tốc độ cuộn */
-        }
-
-        @keyframes scroll {
-            0% {
-                transform: translateX(100%);
-            }
-
-            100% {
-                transform: translateX(-100%);
-            }
-        }
-
-        /* Menu (di chuyển vào header-left để gần logo) */
-        .menu {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            /* gap-6 */
-        }
-
-        .menu-item {
-            position: relative;
-            color: #333;
-            /* text-text-main */
-            font-size: 0.875rem;
-            /* text-sm */
-            font-family: 'Segoe UI', sans-serif;
-            /* Font Segoe UI */
-            cursor: pointer;
-            transition: all 0.3s ease;
-            list-style: none;
-        }
-
-        .menu-item:hover {
-            color: #F472B6;
-            /* hover:text-primary */
-        }
-
-        .menu-item a {
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .menu-item.active span {
-            padding-bottom: 0.5rem;
-            /* pb-2 */
-            color: #F472B6;
-            /* text-primary */
-            font-weight: 600;
-            /* font-semibold */
-            border-bottom: 3px solid #F472B6;
-            /* border-b-[3px] border-primary */
-        }
-
-        .dropdown {
-            position: absolute;
-            top: 100%;
-            /* dính sát dưới menu cha */
-            left: 0;
-            background: white;
-            border-radius: 0.375rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            padding: 1rem;
-            width: max-content;
-            display: none;
-            transition: all 0.3s ease;
-            max-height: 400px;
-            overflow-y: auto;
-            z-index: 100;
-            list-style: none;
-        }
-
-        .menu-item:hover .dropdown {
-            display: block;
-            /* Hiển thị khi hover */
-        }
-
-        .dropdown-item {
-            padding: 0.75rem;
-            /* p-3 */
-            background: #f1f5f9;
-            /* bg-slate-100 */
-            border-radius: 0.375rem;
-            /* rounded-md */
-            margin-bottom: 0.75rem;
-            /* mb-3 */
-            min-width: 340px;
-            /* min-w-[340px] */
-            transition: box-shadow 0.3s ease;
-        }
-
-        .dropdown-item:hover {
-            background: #fef2f8;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .dropdown-item a {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            /* gap-2 */
-            color: #F472B6;
-            /* text-primary */
-            text-decoration: none;
-        }
-
-        .dropdown-item span {
-            font-weight: 500;
-            /* font-medium */
-            color: #666;
-            /* text-text-secondary */
-        }
-
-        /* Buttons bên phải */
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            /* gap-3 */
-        }
-
-        .header-right a {
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .buttons {
-            display: flex;
-            gap: 0.75rem;
-            /* gap-3 */
-        }
-
-        .btn {
-            border-radius: 0.375rem;
-            /* rounded-md */
-            font-weight: 500;
-            /* font-medium */
-            font-family: 'Segoe UI', sans-serif;
-            /* Font Segoe UI */
-            transition: all 0.2s ease-in-out;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-            /* shadow-sm */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            white-space: nowrap;
-            height: 2.5rem;
-            /* h-10 */
-            font-size: 0.875rem;
-            /* text-sm */
-            padding: 0 1rem;
-            /* px-4 */
-            text-decoration: none;
-            /* Bỏ underline cho link */
-            cursor: pointer;
-            border: none;
-        }
-
-        .btn:hover {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            /* hover:shadow-md */
-        }
-
-        .btn-login {
-            background: #F472B6;
-            /* bg-primary */
-            color: white;
-        }
-
-        .btn-login:hover {
-            background: #E11D48;
-            /* hover:bg-primary-dark */
-        }
-
-        .btn-register {
-            background: white;
-            color: #F472B6;
-            /* text-primary */
-            border: 1px solid #F472B6;
-            /* border border-primary */
-        }
-
-        .btn-upload {
-            background: #F87171;
-            /* bg-red-400 */
-            color: white;
-        }
-
-        .btn-upload:hover {
-            background: #B91C1C;
-            /* hover:bg-red-700 */
-        }
-
-        .btn-upload svg {
-            margin-right: 0.25rem;
-            color: white;
-        }
-
-        .hamburger {
-            display: flex;
-            width: 2.5rem;
-            /* size-10 */
-            height: 2.5rem;
-            background: #f1f5f9;
-            /* bg-slate-100 */
-            border-radius: 50%;
-            /* rounded-full */
-            justify-content: center;
-            align-items: center;
-            border: none;
-            cursor: pointer;
-        }
-
-        .hamburger svg {
-            color: #F472B6;
-            /* text-primary */
-        }
-
-        /* Responsive: Ẩn menu và buttons trên mobile, chỉ hiện hamburger */
-        @media (max-width: 768px) {
-
-            .menu,
-            .buttons {
-                display: none;
-            }
-
-            .header {
-                padding: 1rem;
-                margin: 2rem;
-            }
-        }
-
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-        }
-    </style>
-</head>
-
-<body>
-    <header class="header">
-        <div class="header-left">
-            <a class="logo" href="/">
-                <img alt="ZhihuComic-logo-img" loading="lazy" width="180" height="96" decoding="async"
-                    src="Ảnh/app-logo-1.png" />
-            </a>
-            <!-- Menu di chuyển vào đây để gần logo -->
-            <ul class="menu">
-                <li class="menu-item">
-                    <a href="/" class="a1">
-                        <span class="active">Trang chủ</span> <!-- Thêm class "active" nếu đang ở trang này -->
-                    </a>
-                    <ul class="dropdown">
-                        <li class="dropdown-item">
-                            <a href="#last-completed-comic-section">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-heart">
-                                    <path
-                                        d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z">
-                                    </path>
-                                </svg>
-                                <span>Truyện mới</span>
-                            </a>
-                        </li>
-                        <li class="dropdown-item">
-                            <a href="#section-hot-comics">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-search">
-                                    <circle cx="11" cy="11" r="8"></circle>
-                                    <path d="m21 21-4.3-4.3"></path>
-                                </svg>
-                                <span>Truyện hot</span>
-                            </a>
-                        </li>
-                        <li class="dropdown-item">
-                            <a href="#section-top-outstanding">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-circle-check-big">
-                                    <path d="M21.801 10A10 10 0 1 1 17 3.335"></path>
-                                    <path d="m9 11 3 3L22 4"></path>
-                                </svg>
-                                <span>Truyện đề cử</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                <li class="menu-item">
-                    <a href="/comic/search" class="a1">
-                        <span>Tìm truyện</span>
-                    </a>
-                    <ul class="dropdown">
-                        <li class="dropdown-item">
-                            <a href="/comic/search">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-search">
-                                    <circle cx="11" cy="11" r="8"></circle>
-                                    <path d="m21 21-4.3-4.3"></path>
-                                </svg>
-                                <span>Tìm kiếm truyện</span>
-                            </a>
-                        </li>
-                        <li class="dropdown-item">
-                            <a href="/comic/search">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-tags">
-                                    <path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"></path>
-                                    <path
-                                        d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z">
-                                    </path>
-                                    <circle cx="6.5" cy="9.5" r=".5" fill="currentColor"></circle>
-                                </svg>
-                                <span>Tìm theo thể loại</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                <li class="menu-item">
-                    <a href="/notification" class="a1">
-                        <span>Khám phá</span>
-                    </a>
-                    <ul class="dropdown">
-                        <li class="dropdown-item">
-                            <a href="/notification">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-bell">
-                                    <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
-                                    <path
-                                        d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326">
-                                    </path>
-                                </svg>
-                                <span>Thông báo</span>
-                            </a>
-                        </li>
-                        <li class="dropdown-item">
-                            <a href="/term-condition">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-scroll-text">
-                                    <path d="M15 12h-5"></path>
-                                    <path d="M15 8h-5"></path>
-                                    <path d="M19 17V5a2 2 0 0 0-2-2H4"></path>
-                                    <path
-                                        d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3">
-                                    </path>
-                                </svg>
-                                <span>Điều khoản sử dụng</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-            </ul>
-        </div>
-        <div class="header-right">
-            <div class="buttons">
-                <a href="dang_nhap.php">
-                    <button class="btn btn-login" aria-label="Đăng nhập">Đăng nhập</button>
-                </a>
-                <a href="dang_ky.php">
-                    <button class="btn btn-register" aria-label="Đăng ký">Đăng ký</button>
-                </a>
-                <a href="dang_truyen_form.php">
-                    <button class="btn btn-upload" aria-label="Đăng truyện">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                            class="lucide lucide-pen mr-1">
-                            <path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path>
-                        </svg>
-                        Đăng truyện
-                    </button>
-                </a>
-            </div>
-        </div>
-    </header>
-</body>
-<?php include "partials/menu.php"; ?>
+<?php include "menu.php"; ?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -469,17 +108,6 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
             padding: 0;
         }
 
-        .truyen-link {
-            text-decoration: none;
-            color: black;
-        }
-
-        .truyen-link:hover {
-            color: gray;
-            /* đổi màu khi hover chuột, tùy chọn */
-        }
-
-
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
@@ -489,7 +117,17 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
             width: 100%;
             height: 550px;
             overflow: hidden;
-            margin-top: 80px;
+            margin-top: 69px;
+        }
+
+        .truyen-link {
+            text-decoration: none;
+            color: black;
+        }
+
+        .truyen-link:hover {
+            color: gray;
+            /* đổi màu khi hover chuột, tùy chọn */
         }
 
         .slide {
@@ -755,6 +393,7 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             border-radius: 12px;
+            position: relative;
             margin-bottom: 15px;
         }
 
@@ -859,6 +498,17 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
 
         .wrapper1 {
             position: relative;
+            overflow: hidden;
+        }
+
+        .truyen-card img.full-tag {
+            width: 34px !important;
+            height: 46px !important;
+            object-fit: contain;
+            position: absolute;
+            left: -4px;
+            bottom: 20px;
+            z-index: 1;
         }
 
         .time-tag {
@@ -998,90 +648,239 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
                 justify-content: center;
             }
         }
+
+        .banner-wrapper {
+            position: relative;
+        }
+
+        .banner-admin {
+            position: absolute;
+            right: 15px;
+            bottom: 15px;
+            z-index: 9999;
+            /* CỰC KỲ QUAN TRỌNG */
+        }
+
+        .banner-admin button {
+            padding: 8px 12px;
+            margin-left: 6px;
+            background: #ff5fa2;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+        }
     </style>
 </head>
 
 <body>
-    <div class="banner">
-        <button class="nav-btn prev">◀</button>
-        <button class="nav-btn next">▶</button>
-        <div class="dots"></div>
+    <div class="banner-wrapper">
+        <div class="banner">
+            <button class="nav-btn prev">◀</button>
+            <button class="nav-btn next">▶</button>
+            <div class="dots"></div>
+        </div>
+
+        <?php if ($isAdmin): ?>
+            <div class="banner-admin">
+                <button id="addBtn">Thêm</button>
+                <button id="editBtn">Sửa</button>
+                <button id="saveBtn" style="display:none">Lưu</button>
+                <input type="file" id="imageInput" hidden accept="image/*">
+            </div>
+        <?php endif; ?>
     </div>
 
+
+
+
     <script>
-        const banners = [
-            {
-                title: "Khi Tiểu Thư Thật Giả Cuồng Kiểm Soát Tranh...",
-                desc: "Ngay ngày đầu tiên trở về nhà họ Tưởng, tôi đã biết kẻ thù của mình không phải là tiểu kim giả kia mà là người chị...",
-                button: "Đọc truyện ngay",
-                image: "Ảnh/hinh-mau-hong-25.jpg"
-            },
-            {
-                title: "Nữ Chính Hồi Sinh Với Hệ Thống Phản Công",
-                desc: "Cô ấy từng là kẻ yếu đuối, nhưng lần này, cô trở lại với sức mạnh và trí tuệ không ai sánh bằng.",
-                button: "Xem ngay",
-                image: "Ảnh/hinh-mau-hong-25.jpg"
-            },
-            {
-                title: "Công Tước Hắc Ám Và Cô Gái Ánh Trăng",
-                desc: "Một mối tình cấm kỵ giữa ánh sáng và bóng tối, nơi định mệnh không thể chối bỏ.",
-                button: "Đọc ngay",
-                image: "Ảnh/hinh-nen-mau-hong-cute-cho-may-tinh-13.png.webp"
-            }
-        ];
+const banners = <?= json_encode($banners, JSON_UNESCAPED_UNICODE) ?>;
+const isAdmin = <?= $isAdmin ? 'true' : 'false' ?>;
 
-        const bannerContainer = document.querySelector(".banner");
-        const dotsContainer = document.querySelector(".dots");
+const bannerEl = document.querySelector('.banner');
+const dotsEl = document.querySelector('.dots');
 
-        // Tạo slide
-        banners.forEach((b, i) => {
-            const slide = document.createElement("div");
-            slide.className = "slide";
-            if (i === 0) slide.classList.add("active");
-            slide.style.backgroundImage = `url(${b.image})`;
-            slide.innerHTML = `
-            <div class="overlay">
-              <h1>${b.title}</h1>
-              <p>${b.desc}</p>
-              <button>${b.button}</button>
-            </div>
-          `;
-            bannerContainer.appendChild(slide);
+let slides = [];
+let dots = [];
+let current = 0;
+let editMode = false;
+let newImage = null;
 
-            const dot = document.createElement("div");
-            dot.className = "dot";
-            if (i === 0) dot.classList.add("active");
-            dot.addEventListener("click", () => showSlide(i));
-            dotsContainer.appendChild(dot);
+/* ===== TẠO SLIDE BAN ĐẦU ===== */
+banners.forEach((b, i) => {
+    const slide = document.createElement('div');
+    slide.className = 'slide' + (i === 0 ? ' active' : '');
+    slide.dataset.id = b.id;
+    slide.dataset.link = b.link;
+    slide.style.backgroundImage = `url(${b.image})`;
+
+    slide.innerHTML = `
+        <div class="overlay">
+            <h1 class="title">${b.title}</h1>
+            <p class="desc">${b.description}</p>
+            <a class="read-btn" href="${b.link}">
+                <button>Đọc truyện ngay</button>
+            </a>
+        </div>
+    `;
+    bannerEl.appendChild(slide);
+
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => showSlide(i);
+    dotsEl.appendChild(dot);
+});
+
+refreshSlides();
+
+/* ===== REFRESH SLIDES & DOTS ===== */
+function refreshSlides() {
+    slides = Array.from(document.querySelectorAll('.slide'));
+    dots = Array.from(document.querySelectorAll('.dot'));
+}
+
+/* ===== SHOW SLIDE ===== */
+function showSlide(i) {
+    if (!slides[i]) return;
+
+    slides[current]?.classList.remove('active');
+    dots[current]?.classList.remove('active');
+
+    current = i;
+
+    slides[current].classList.add('active');
+    dots[current]?.classList.add('active');
+}
+
+/* ===== NAV ===== */
+document.querySelector('.prev').onclick = () =>
+    showSlide((current - 1 + slides.length) % slides.length);
+
+document.querySelector('.next').onclick = () =>
+    showSlide((current + 1) % slides.length);
+
+/* ===== AUTO SLIDE (DỪNG KHI EDIT) ===== */
+setInterval(() => {
+    if (!editMode && slides.length > 1) {
+        showSlide((current + 1) % slides.length);
+    }
+}, 5000);
+
+/* ================= ADMIN ================= */
+if (isAdmin) {
+    const editBtn = document.getElementById('editBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const addBtn  = document.getElementById('addBtn');
+    const imageInput = document.getElementById('imageInput');
+
+    /* ===== EDIT MODE ===== */
+    editBtn.onclick = () => {
+        editMode = true;
+        editBtn.style.display = 'none';
+        saveBtn.style.display = 'inline-block';
+
+        slides.forEach(slide => {
+            slide.querySelector('.title').contentEditable = true;
+            slide.querySelector('.desc').contentEditable = true;
+        });
+    };
+
+    /* ===== ĐỔI ẢNH ===== */
+    bannerEl.addEventListener('click', () => {
+        if (!editMode) return;
+        imageInput.click();
+    });
+
+    imageInput.onchange = e => {
+        newImage = e.target.files[0];
+        slides[current].style.backgroundImage =
+            `url(${URL.createObjectURL(newImage)})`;
+    };
+
+    /* ===== ĐỔI LINK ===== */
+    bannerEl.addEventListener('click', e => {
+        const btn = e.target.closest('.read-btn');
+        if (!btn || !editMode) return;
+
+        e.preventDefault();
+        const slide = slides[current];
+        const link = prompt('Nhập link truyện:', slide.dataset.link || '');
+        if (link) {
+            slide.dataset.link = link;
+            btn.href = link;
+        }
+    });
+
+    /* ===== LƯU ===== */
+    saveBtn.onclick = async () => {
+        const slide = slides[current];
+        const fd = new FormData();
+
+        fd.append('id', slide.dataset.id);
+        fd.append('title', slide.querySelector('.title').innerText.trim());
+        fd.append('description', slide.querySelector('.desc').innerText.trim());
+        fd.append('link', slide.dataset.link || '#');
+
+        if (newImage) fd.append('image', newImage);
+
+        const res = await fetch('update_slide.php', {
+            method: 'POST',
+            body: fd
         });
 
-        const slides = document.querySelectorAll(".slide");
-        const dots = document.querySelectorAll(".dot");
-        let current = 0;
-
-        function showSlide(i) {
-            slides[current].classList.remove("active");
-            dots[current].classList.remove("active");
-            current = i;
-            slides[current].classList.add("active");
-            dots[current].classList.add("active");
+        const data = await res.json();
+        if (data.success) {
+            alert('✔ Đã lưu banner');
+            location.reload();
+        } else {
+            alert('❌ Lỗi lưu banner');
         }
+    };
 
-        document.querySelector(".prev").onclick = () => {
-            showSlide((current - 1 + slides.length) % slides.length);
-        };
+    /* ===== THÊM BANNER ===== */
+    addBtn.onclick = () => {
+        editMode = true;
+        saveBtn.style.display = 'inline-block';
+        editBtn.style.display = 'none';
 
-        document.querySelector(".next").onclick = () => {
-            showSlide((current + 1) % slides.length);
-        };
+        const slide = document.createElement('div');
+        slide.className = 'slide';
+        slide.dataset.id = 0;
+        slide.dataset.link = '';
+        slide.style.backgroundImage = 'url(images/no-image.png)';
 
-        // Tự động chuyển slide sau 5s
-        setInterval(() => {
-            showSlide((current + 1) % slides.length);
-        }, 5000);
-    </script>
+        slide.innerHTML = `
+            <div class="overlay">
+                <h1 class="title" contenteditable="true">Tiêu đề banner</h1>
+                <p class="desc" contenteditable="true">Mô tả banner</p>
+                <a class="read-btn" href="#">
+                    <button>Đọc truyện ngay</button>
+                </a>
+            </div>
+        `;
 
-    <div class="TruyenMoiCapNhat">
+        bannerEl.appendChild(slide);
+
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.onclick = () => showSlide(slides.length);
+        dotsEl.appendChild(dot);
+
+        refreshSlides();
+        showSlide(slides.length - 1);
+
+        newImage = null;
+    };
+}
+</script>
+
+
+
+
+
+
+    <div class="TruyenMoiCapNhat" id="truyen-moi">
         <div class="TruyenMoiCapNhat-content">
             <div class="gioithieu">
                 <!-- Text trái -->
@@ -1109,22 +908,25 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
             <div class="grid-truyen">
 
                 <?php while ($row = $truyens->fetch_assoc()): ?>
+
                     <div class="truyen-card">
                         <div class="wrapper1">
-                            <!-- Link ảnh -->
-                            <a href="truyen.php?slug=<?= urlencode($row['slug']); ?>">
-                                <img src="<?= $row['anh_bia']; ?>" alt="<?= htmlspecialchars($row['ten_truyen']); ?>">
+                            <a href="truyen.php?slug=<?php echo $row['slug']; ?>">
+                                <img src="<?php echo $row['anh_bia']; ?>" alt="<?php echo $row['ten_truyen']; ?>">
                             </a>
+                            <?php if ($row['trang_thai'] === 'hoan_thanh'): ?>
+                                <img src="Ảnh/full_tag.webp" alt="FULL" class="full-tag">
+                            <?php endif; ?>
                             <div class="time-tag"><?= timeAgo($row['ngay_cap_nhat']); ?></div>
                         </div>
 
                         <div class="truyen-info">
-                            <!-- Link tiêu đề truyện -->
                             <h3>
                                 <a href="truyen.php?slug=<?= urlencode($row['slug']); ?>" class="truyen-link">
                                     <?= htmlspecialchars($row['ten_truyen']); ?>
                                 </a>
                             </h3>
+
 
                             <div class="truyen-stats">
 
@@ -1138,7 +940,7 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
                                             d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
                                         </path>
                                     </svg>
-                                    <span>??</span> <!-- số chương -->
+                                    <span><?= isset($row['tong_chuong']) ? $row['tong_chuong'] : 0; ?></span>
                                 </div>
 
                                 <div class="st1">
@@ -1150,29 +952,27 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
                                         </path>
                                         <circle cx="12" cy="12" r="3"></circle>
                                     </svg>
-                                    <span>0</span> <!-- lượt xem -->
+                                    <span><?= isset($row['tong_luot_xem']) ? $row['tong_luot_xem'] : 0; ?></span>
                                 </div>
 
                             </div>
                         </div>
                     </div>
+
                 <?php endwhile; ?>
 
             </div>
-
         </div>
     </div>
 
-    <div class="TruyenDocNhieuNhat">
+    <div class="TruyenDocNhieuNhat" id="truyen-hot">
         <div class="TruyenDocNhieuNhat-content">
             <div class="gioithieu">
-                <!-- Text trái -->
                 <div class="text">
                     <div class="text1">Top truyện hấp dẫn nhất</div>
                     <div class="text2">Truyện đang được đọc nhiều nhất!</div>
                 </div>
 
-                <!-- Button phải -->
                 <div class="XemTatCa">
                     <a href="/comic/search">
                         <button class="all">
@@ -1189,565 +989,62 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
             </div>
 
             <div class="grid-truyen">
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 1</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
+                <?php
+                $top = 1;
+                while ($row = mysqli_fetch_assoc($result_view)) {
+                    ?>
+                    <div class="truyen-card">
+                        <div class="wrapper">
+                            <a href="truyen.php?slug=<?php echo $row['slug']; ?>">
+                                <img src="<?php echo $row['anh_bia']; ?>" alt="<?php echo $row['ten_truyen']; ?>">
+                            </a>
+                            <?php if ($row['trang_thai'] === 'hoan_thanh'): ?>
+                                <img src="Ảnh/full_tag.webp" alt="FULL" class="full-tag">
+                            <?php endif; ?>
+                            <?php if ($top <= 3) { ?>
+                                <div class="tag">Top <?php echo $top; ?></div>
+                            <?php } ?>
                         </div>
-                    </div>
-                </div>
 
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 1</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                        <div class="truyen-info">
+                            <h3>
+                                <a href="truyen.php?slug=<?= urlencode($row['slug']); ?>" class="truyen-link">
+                                    <?= htmlspecialchars($row['ten_truyen']); ?>
+                                </a>
+                            </h3>
 
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 3</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                            <div class="truyen-stats">
+                                <div class="st1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" class="lucide lucide-book-open-check">
+                                        <path d="M12 21V7"></path>
+                                        <path d="m16 12 2 2 4-4"></path>
+                                        <path
+                                            d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
+                                        </path>
+                                    </svg>
+                                    <span><?php echo $row['tong_chuong']; ?></span>
+                                </div>
 
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 4</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
+                                <div class="st1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" class="lucide lucide-eye">
+                                        <path
+                                            d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
+                                        </path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                    <span><?php echo number_format($row['tong_luot_xem']); ?></span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 5</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 6</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 7</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 8</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 9</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 10</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 11</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 12</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 13</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 14</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 15</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper"><img
-                            src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="tag">Top 16</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    <?php
+                    $top++;
+                }
+                ?>
             </div>
         </div>
     </div>
@@ -1776,567 +1073,47 @@ $truyens = getTruyenMoiCapNhat($conn, 6);
                     </a>
                 </div>
             </div>
-
             <div class="grid-truyen">
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
+                <?php while ($row = $result_de_cu->fetch_assoc()): ?>
+                    <div class="truyen-card">
+                        <div class="wrapper1">
+                            <img src="<?= $row['anh_bia'] ?: 'no-image.jpg' ?>"
+                                alt="<?= htmlspecialchars($row['ten_truyen']) ?>">
+                            <?php if ($row['trang_thai'] === 'hoan_thanh'): ?>
+                                <img src="Ảnh/full_tag.webp" alt="FULL" class="full-tag">
+                            <?php endif; ?>
+                            <div class="time-tag">
+                                <?= timeAgo($row['ngay_cap_nhat']) ?>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                        <div class="truyen-info">
+                            <h3>
+                                <a href="truyen.php?slug=<?= urlencode($row['slug']); ?>" class="truyen-link">
+                                    <?= htmlspecialchars($row['ten_truyen']); ?>
+                                </a>
+                            </h3>
 
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
+                            <div class="truyen-stats">
+                                <div class="st1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" class="lucide lucide-book-open-check">
+                                        <path d="M12 21V7"></path>
+                                        <path d="m16 12 2 2 4-4"></path>
+                                        <path
+                                            d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
+                                        </path>
+                                    </svg>
+                                    <span><?= isset($row['tong_chuong']) ? $row['tong_chuong'] : 0; ?></span>
+                                </div>
+                                <div class="st1">
+                                    ✰ <span><?= number_format($row['diem_de_cu']) ?></span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="truyen-card">
-                    <div class="wrapper1">
-                        <img src="https://i.pinimg.com/736x/5c/bf/32/5cbf32d4f9e7b7e3221b4b7c67e0662f.jpg" alt="">
-                        <div class="time-tag">Vừa xong</div>
-                    </div>
-                    <div class="truyen-info">
-                        <h3>Hôn Ước Ngọt Ngào</h3>
-                        <div class="truyen-stats">
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-book-open-check">
-                                    <path d="M12 21V7"></path>
-                                    <path d="m16 12 2 2 4-4"></path>
-                                    <path
-                                        d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3">
-                                    </path>
-                                </svg>
-                                <span>24</span>
-                            </div>
-                            <div class="st1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="lucide lucide-eye">
-                                    <path
-                                        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
-                                    </path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                                <span>15560</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <?php endwhile; ?>
             </div>
         </div>
     </div>

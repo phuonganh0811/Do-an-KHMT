@@ -1,8 +1,39 @@
 <?php
 require 'connect.php';
 require 'time.php';
+session_start();
 
-// Lấy 16 truyện mới cập nhật, kèm số chương và tổng lượt xem
+/* =========================
+   1. Kiểm tra quyền admin
+   ========================= */
+$isAdmin = false;
+if (isset($_SESSION['user_id'])) {
+    $uid = $_SESSION['user_id'];
+    $sql_user = "SELECT vai_tro FROM nguoi_dung WHERE id = ?";
+    $stmt = $conn->prepare($sql_user);
+    $stmt->bind_param("i", $uid);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+
+    if ($user && $user['vai_tro'] === 'quan_tri') {
+        $isAdmin = true;
+    }
+}
+
+/* =========================
+   2. Lấy banner slider
+   ========================= */
+$sql_banner = "
+    SELECT id, title, description, image, link
+    FROM banner_slides
+    WHERE is_active = 1
+    ORDER BY sort_order ASC
+";
+$banners = $conn->query($sql_banner)->fetch_all(MYSQLI_ASSOC);
+
+/* =========================
+   3. Truyện mới cập nhật
+   ========================= */
 $sql = "
 SELECT 
     t.id,
@@ -19,9 +50,11 @@ GROUP BY t.id
 ORDER BY t.ngay_cap_nhat DESC
 LIMIT 16
 ";
-
 $truyens = $conn->query($sql);
 
+/* =========================
+   4. Truyện nhiều lượt xem
+   ========================= */
 $sql_view = "
 SELECT 
     t.id,
@@ -38,8 +71,11 @@ GROUP BY t.id
 ORDER BY tong_luot_xem DESC
 LIMIT 16
 ";
-$result_view = mysqli_query($conn, $sql_view);
+$result_view = $conn->query($sql_view);
 
+/* =========================
+   5. Truyện đề cử cao
+   ========================= */
 $sql_de_cu = "
 SELECT 
     t.id,
@@ -58,8 +94,6 @@ ORDER BY t.diem_de_cu DESC
 LIMIT 16
 ";
 $result_de_cu = $conn->query($sql_de_cu);
-
-
 ?>
 
 <?php include "menu.php"; ?>

@@ -407,16 +407,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const checkbox = document.getElementById('la_tra_phi');
         const giaInput = document.getElementById('gia');
 
-        checkbox.addEventListener('change', function () {
-            if (this.checked) {
-                giaInput.disabled = false;
+        checkbox.addEventListener('change', function () {//change xảy ra khi ấn tick hoặc bỏ tick
+            if (this.checked) {//ấn tick
+                giaInput.disabled = false;//mở ô nhập giá
             } else {
                 giaInput.value = 0;
                 giaInput.disabled = true;
             }
         });
     </script>
-
 </body>
-
 </html>

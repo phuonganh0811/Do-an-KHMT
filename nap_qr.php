@@ -14,7 +14,7 @@ $goi_nap = [
     500000 => ['dau' => 450000, 'hoa' => 450000, 'he_thong' => 5000],
     1000000 => ['dau' => 900000, 'hoa' => 900000, 'he_thong' => 100000],
 ];
-$so_tien = (int) ($_GET['so_tien'] ?? 0);
+$so_tien = (int) ($_GET['so_tien'] ?? 0); //tồn tại và ko null $_GET['so_tien'], nguoc lai thi 0, get từ url
 if (!$so_tien || !isset($goi_nap[$so_tien]))
     exit;
 

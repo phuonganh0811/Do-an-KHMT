@@ -76,7 +76,7 @@ LIMIT ? OFFSET ?
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("iii", $id_truyen, $perPage, $offset);
 $stmt->execute();
-$chuongList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$chuongList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); //fetch_all toàn bộ các dòng trong kết quả truy vấn một lần
 $stmt->close();
 
 $totalPages = ceil($tongChuong / $perPage);
@@ -253,6 +253,7 @@ $totalPages = ceil($tongChuong / $perPage);
       <!-- PHÂN TRANG -->
       <div style="text-align:center; margin-top:20px;">
         <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+          <!-- i = page css btn, khác background:#fff;color:#e91e63;border:1px solid #e91e63-->
           <a class="btn" style="<?= $i == $page ? '' : 'background:#fff;color:#e91e63;border:1px solid #e91e63;' ?>"
             href="?slug=<?= urlencode($slug) ?>&page=<?= $i ?>">
             <?= $i ?>

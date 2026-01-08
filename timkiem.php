@@ -215,7 +215,7 @@
             </div>
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Tên truyện...">
-                <i>🔍</i>
+
             </div>
         </div>
 

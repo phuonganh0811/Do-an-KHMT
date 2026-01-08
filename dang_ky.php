@@ -1,18 +1,18 @@
 <?php
 require 'connect.php';
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT); //Bật chế độ báo lỗi  cho MySQLi
 
-$errors = [];
+$errors = []; //Khởi tạo mảng chứa lỗi, hiển thị tất cả lỗi
+$showErrorPopup = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') { //xử lý khi form được submit bằng POST
 
-    $ten_hien_thi = trim($_POST['ten_hien_thi'] ?? '');
+    $ten_hien_thi = trim($_POST['ten_hien_thi'] ?? ''); //trim() xóa khoảng trắng đầu & cuối, ten_hien_thi lấy từ form đăng ký, ?? kiểm tra null
     $email = trim($_POST['email'] ?? '');
     $mat_khau = $_POST['mat_khau'] ?? '';
     $mat_khau_2 = $_POST['mat_khau_2'] ?? '';
 
     /* ===== VALIDATE ===== */
-
     if ($ten_hien_thi === '') {
         $errors['ten_hien_thi'] = "Vui lòng nhập tên đầy đủ!";
     }
@@ -31,42 +31,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['mat_khau_2'] = "Mật khẩu nhập lại không khớp!";
     }
 
-    /* ===== KIỂM TRA EMAIL TỒN TẠI ===== */
+    /* ===== CHECK EMAIL TỒN TẠI ===== */
     if (empty($errors)) {
         $check = $conn->prepare("SELECT id FROM nguoi_dung WHERE email = ?");
-        $check->bind_param("s", $email);
-        $check->execute();
-        $check->store_result();
+        $check->bind_param("s", $email); // gán giá trị cho ?
+        $check->execute(); //chạy câu SQL
+        $check->store_result(); //Lưu kết quả query vào bộ nhớ
 
-        if ($check->num_rows > 0) {
-            $errors['email'] = "Email đã tồn tại!";
+        if ($check->num_rows > 0) { //kiểm tra mail tồn tại ko, có -> lỗi
+            $errors[] = 'exist';
         }
         $check->close();
     }
 
+    /* ===== CHỈ HIỆN POPUP KHI EMAIL TRÙNG ===== */
+    if (in_array('exist', $errors, true)) { //Ktr lỗi exist trong $errors, có hiện popup
+        $showErrorPopup = true;
+    }
+
+
     /* ===== INSERT ===== */
-    $hash = password_hash($mat_khau, PASSWORD_BCRYPT);
+    if (empty($errors)) {
+        $hash = password_hash($mat_khau, PASSWORD_BCRYPT); //Mã hóa mật khẩu trước khi lưu vào database
 
-    $stmt = $conn->prepare("
-    INSERT INTO nguoi_dung (ten_dang_nhap, email, mat_khau, ten_hien_thi)
-    VALUES (?, ?, ?, ?)
-");
+        $stmt = $conn->prepare("
+            INSERT INTO nguoi_dung (ten_dang_nhap, email, mat_khau, ten_hien_thi)
+            VALUES (?, ?, ?, ?)
+        "); //Chuẩn bị SQL
+        $stmt->bind_param("ssss", $email, $email, $hash, $ten_hien_thi); // gán giá trị cho ?
+        $stmt->execute(); //thực thi lệnh
+        $stmt->close(); //Đóng statement
 
-    $stmt->bind_param(
-        "ssss",
-        $email,        // ten_dang_nhap
-        $email,
-        $hash,
-        $ten_hien_thi
-    );
-
-    $stmt->execute();
-    $stmt->close();
-
-    header("Location: dang_nhap.php?registered=1");
-    exit;
+        header("Location: dang_nhap.php?registered=1");
+        exit;
+    }
 }
-
 ?>
 
 
@@ -283,6 +282,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 min-height: 300px;
             }
         }
+
+        .popup-error {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f44336;
+            color: #fff;
+            padding: 18px 26px;
+            border-radius: 14px;
+            min-width: 320px;
+            z-index: 9999;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, .25);
+            animation: slideDown .4s ease;
+        }
+
+        .popup-title {
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .popup-text {
+            font-size: 14px;
+            opacity: .95;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+        }
     </style>
 </head>
 
@@ -310,6 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-group">
                     <label>Tên đầy đủ <span>*</span></label>
                     <input type="text" name="ten_hien_thi" value="<?= htmlspecialchars($ten_hien_thi ?? '') ?>">
+                    <!-- Ktr lỗi ten_hien_thi trong $errors, có hiện lỗi -->
                     <?php if (!empty($errors['ten_hien_thi'])): ?>
                         <div class="error-text"><?= $errors['ten_hien_thi'] ?></div>
                     <?php endif; ?>
@@ -329,11 +367,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="password" name="mat_khau" class="password-input">
                         <span class="toggle-pass"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye">
+                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-off">
                                 <path
-                                    d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
+                                    d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49">
                                 </path>
-                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"></path>
+                                <path
+                                    d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143">
+                                </path>
+                                <path d="m2 2 20 20"></path>
                             </svg></span>
                     </div>
                     <?php if (!empty($errors['mat_khau'])): ?>
@@ -347,11 +389,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="password" name="mat_khau_2" class="password-input">
                         <span class="toggle-pass"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye">
+                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-off">
                                 <path
-                                    d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0">
+                                    d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49">
                                 </path>
-                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"></path>
+                                <path
+                                    d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143">
+                                </path>
+                                <path d="m2 2 20 20"></path>
                             </svg></span>
                     </div>
                     <?php if (!empty($errors['mat_khau_2'])): ?>
@@ -395,11 +441,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     </div>
     <script>
-        document.querySelectorAll('.toggle-pass').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const input = this.closest('.password-box').querySelector('input');
+        document.querySelectorAll('.toggle-pass').forEach(btn => { //lấy tất cả phần tử có class toggle-pass, (cái mắt) forEach(btn :lặp từng nút
+            btn.addEventListener('click', function () { //bấm mắt sẽ chạy
+                const input = this.closest('.password-box').querySelector('input'); //tìm password-box gần nhất, tìm <input> bên trong box đó đảm bảo mắt nào điều khiển input đó
 
-                if (input.type === 'password') {
+                if (input.type === 'password') { //Đang pass, ấn sẽ hiện, mắt mở
                     input.type = 'text';
                     this.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
@@ -427,6 +473,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
     </script>
 
+    <?php if ($showErrorPopup): ?>
+        <div class="popup-error" id="popupError">
+            <div class="popup-title">Đăng ký không thành công!</div>
+            <div class="popup-text">
+                Email đã tồn tại!
+            </div>
+        </div>
+    <?php endif; ?>
+    <script>
+        setTimeout(() => {
+            const popup = document.getElementById('popupError');
+            if (popup) {
+                popup.style.opacity = '0';
+                popup.style.transition = 'opacity .4s';
+                setTimeout(() => popup.remove(), 400);
+            }
+        }, 3000);
+    </script>
 
 </body>
 

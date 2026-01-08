@@ -33,18 +33,6 @@ try {
     $stmt->execute();
     $nap = $stmt->get_result()->fetch_assoc();
 
-    if (!$nap) {
-        throw new Exception('Không tồn tại yêu cầu nạp');
-    }
-
-    if ($nap['trang_thai'] !== 'cho_duyet') {
-        throw new Exception('Yêu cầu đã được xử lý');
-    }
-
-    if (!isset($goi_nap[$nap['so_tien']])) {
-        throw new Exception('Gói nạp không hợp lệ');
-    }
-
     $dau  = $goi_nap[$nap['so_tien']]['dau'];
     $hoa  = $goi_nap[$nap['so_tien']]['hoa'];
     $doanh_thu = $nap['so_tien'] - $dau; // phần hệ thống giữ

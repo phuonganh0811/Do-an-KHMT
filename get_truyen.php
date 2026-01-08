@@ -8,7 +8,7 @@ $limit = 30;
 $offset = ($page - 1) * $limit;
 
 $where = [];
-$params = [];
+$params = []; //mảng chứa GIÁ TRỊ THẬT sẽ được đưa vào các dấu ? trong câu SQL.
 $types = "";
 
 /* Lọc theo thể loại */

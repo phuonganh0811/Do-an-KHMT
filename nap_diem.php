@@ -19,22 +19,6 @@ $goi_nap = [
     500000 => ['dau' => 450000, 'hoa' => 450000, 'he_thong' => 5000],
     1000000 => ['dau' => 900000, 'hoa' => 900000, 'he_thong' => 100000],
 ];
-
-$so_tien = isset($_GET['so_tien']) ? (int) $_GET['so_tien'] : 0;
-$ma_nap = null;
-
-/* Khi bấm "Nạp ngay" */
-if ($so_tien && isset($goi_nap[$so_tien])) {
-
-    $ma_nap = 'NAP' . time() . rand(100, 999);
-
-    $stmt = $conn->prepare("
-        INSERT INTO nap_tien (id_user, so_tien, ma_nap, trang_thai)
-        VALUES (?, ?, ?, 'cho_duyet')
-    ");
-    $stmt->bind_param("iis", $user_id, $so_tien, $ma_nap);
-    $stmt->execute();
-}
 ?>
 
 <!DOCTYPE html>
@@ -355,7 +339,8 @@ if ($so_tien && isset($goi_nap[$so_tien])) {
 
         </div>
     </div>
-    <div id="qrModal" class="modal">
+    <!-- popup dùng để hiển thị QR code -->
+    <div id="qrModal" class="modal"> 
         <div class="modal-content">
             <span class="close" onclick="closeQR()">×</span>
             <div id="qrContent"></div>
@@ -363,17 +348,17 @@ if ($so_tien && isset($goi_nap[$so_tien])) {
     </div>
     <script>
         function napTien(btn) {
-            const soTien = btn.dataset.tien;
+            const soTien = btn.dataset.tien; //Lấy giá trị tiền nạp
 
-            fetch("nap_qr.php?so_tien=" + soTien)
-                .then(res => res.text())
+            fetch("nap_qr.php?so_tien=" + soTien) //Gửi request lên server bằng fetch
+                .then(res => res.text()) //Nhận dữ liệu trả về
                 .then(html => {
-                    document.getElementById("qrContent").innerHTML = html;
-                    document.getElementById("qrModal").style.display = "block";
+                    document.getElementById("qrContent").innerHTML = html; //Gán qr, nội dung
+                    document.getElementById("qrModal").style.display = "block"; //Hiện popup
                 });
         }
 
-        function closeQR() {
+        function closeQR() { //đóng popup
             document.getElementById("qrModal").style.display = "none";
         }
     </script>

@@ -969,14 +969,14 @@ function renderComments($parent_id, $comments)
                             so_diem: soDiem
                         })
                     })
-                        .then(res => res.json())
+                        .then(res => res.json()) //Đọc JSON mà PHP trả về, data là kết quả từ php success, tong_de_cu
                         .then(data => {
-                            if (data.success) {
-                                tongDeCu.innerText = data.tong_de_cu;
-                                popup.classList.add('hidden');
+                            if (data.success) { //đề cử thành công
+                                tongDeCu.innerText = data.tong_de_cu; //Cập nhật tổng đề cử ngay trên giao diện
+                                popup.classList.add('hidden'); //Đóng popup
                                 alert('Đề cử thành công!');
                             } else {
-                                alert(data.message);
+                                alert(data.message); //trả về thông báo Không đủ điểm đề cử
                             }
                         });
                 };

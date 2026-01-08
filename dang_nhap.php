@@ -7,7 +7,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($_POST['email']) || empty($_POST['mat_khau'])) {
-        die("❌ Thiếu thông tin đăng nhập");
+        die("❌ Thiếu thông tin đăng nhập"); //die in tb, dừng php
     }
 
     $username = trim($_POST['email']);
@@ -21,15 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ");
 
     $stmt->bind_param("ss", $username, $username);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->execute(); //chạy sql
+    $user = $stmt->get_result()->fetch_assoc(); //Lấy kết quả SQL → fetch_assoc() lấy 1 dòng → gán vào $user
 
     if (!$user) {
         die("❌ Tài khoản không tồn tại");
-    }
-
-    if ($user['trang_thai'] != 1) {
-        die("❌ Tài khoản đã bị khóa");
     }
 
     if (!password_verify($password, $user['mat_khau'])) {

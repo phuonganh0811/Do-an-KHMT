@@ -6,9 +6,9 @@ require 'auth.php';
 require_login();
 
 /* Lấy thể loại */
-$theLoai = [];
-$rs = mysqli_query($conn, "SELECT id, ten_the_loai FROM the_loai ORDER BY ten_the_loai");
-while ($row = mysqli_fetch_assoc($rs)) {
+$theLoai = []; //mảng trống để chứa dữ liệu thể loại
+$rs = mysqli_query($conn, "SELECT id, ten_the_loai FROM the_loai ORDER BY ten_the_loai"); //thực hiện câu lệnh SQL
+while ($row = mysqli_fetch_assoc($rs)) { //Chạy vòng lặp để $theLoai chứa tất cả thể loại trong DB.
     $theLoai[] = $row;
 }
 ?>
@@ -252,11 +252,6 @@ while ($row = mysqli_fetch_assoc($rs)) {
                             <option value="doc_quyen">Độc quyền (90% cho tác giả)</option>
                         </select>
                     </div>
-
-                    <div class="form-group">
-                        <label>Giá truyện (đậu) <span>*</span></label>
-                        <input type="number" name="gia_truyen" min="0" value="0" required>
-                    </div>
                 </div>
 
                 <div class="form-group">
@@ -307,7 +302,7 @@ while ($row = mysqli_fetch_assoc($rs)) {
     </script>
 
     <script>
-        const theLoai = <?= json_encode($theLoai) ?>;
+        const theLoai = <?= json_encode($theLoai) ?>; //json_encode() chuyển mảng PHP → mảng JS.
 
         const input = document.getElementById('theloai-input');
         const suggestions = document.getElementById('suggestions');
@@ -316,45 +311,45 @@ while ($row = mysqli_fetch_assoc($rs)) {
 
         let selected = [];
 
-        input.addEventListener('input', () => {
-            const key = input.value.toLowerCase();
-            suggestions.innerHTML = '';
-            if (!key) return suggestions.style.display = 'none';
+        input.addEventListener('input', () => { //chạy khi nhập, xóa
+            const key = input.value.toLowerCase(); //chuyển chử nhập thành chữ thường
+            suggestions.innerHTML = ''; //Mỗi lần người dùng gõ → xóa  gợi ý cũ, tránh bị trùng
+            if (!key) return suggestions.style.display = 'none'; //Nếu input trống → ẩn gợi ý.
 
-            const matches = theLoai.filter(t =>
-                t.ten_the_loai.toLowerCase().includes(key)
-                && !selected.includes(t.id)
+            const matches = theLoai.filter(t => //lọc các thể loại từ mảng theLoai
+                t.ten_the_loai.toLowerCase().includes(key) //Chỉ lấy thể loại chứa từ khóa nhập
+                && !selected.includes(t.id) //Bỏ qua những thể loại người dùng đã chọn
             );
 
-            matches.forEach(t => {
-                const div = document.createElement('div');
-                div.textContent = t.ten_the_loai;
-                div.onclick = () => addTag(t);
-                suggestions.appendChild(div);
+            matches.forEach(t => { //matches mảng các thể loại đã lọc, lặp qua từng thể loại một
+                const div = document.createElement('div'); //Tạo một thẻ <div> mới trong bộ nhớ
+                div.textContent = t.ten_the_loai; //Gán nội dung chữ cho div
+                div.onclick = () => addTag(t); //Gắn sự kiện click addTag cho div
+                suggestions.appendChild(div); //Thêm <div> vừa tạo vào suggestions
             });
 
-            suggestions.style.display = matches.length ? 'block' : 'none';
+            suggestions.style.display = matches.length ? 'block' : 'none'; //Hiện / ẩn gợi ý (matches>1 hiện)
         });
 
         function addTag(t) {
-            selected.push(t.id);
-            const tag = document.createElement('div');
-            tag.className = 'tag';
-            tag.innerHTML = t.ten_the_loai + '<span onclick="removeTag(' + t.id + ', this)">×</span>';
-            selectedTags.appendChild(tag);
-            updateHidden();
-            input.value = '';
-            suggestions.style.display = 'none';
+            selected.push(t.id); //Thêm ID thể loại vào mảng selected
+            const tag = document.createElement('div'); //Tạo một thẻ div mới trong bộ nhớ
+            tag.className = 'tag'; //Gán class CSS tag cho div
+            tag.innerHTML = t.ten_the_loai + '<span onclick="removeTag(' + t.id + ', this)">×</span>'; //Gán nội dung HTML cho thẻ div.tag, Gắn sự kiện click removeTag cho x
+            selectedTags.appendChild(tag); //Thêm thẻ vừa tạo vào khu vực hiển thị
+            updateHidden(); //Cập nhật input ẩn the_loai_ids
+            input.value = ''; //Xoá nội dung ô nhập
+            suggestions.style.display = 'none'; //ẩn gợi ý
         }
 
         function removeTag(id, el) {
-            selected = selected.filter(x => x !== id);
-            el.parentElement.remove();
-            updateHidden();
+            selected = selected.filter(x => x !== id); //cập nhật mảng nếu xóa
+            el.parentElement.remove(); //xóa tag
+            updateHidden(); //Cập nhật input ẩn the_loai_ids
         }
 
         function updateHidden() {
-            hiddenInput.value = selected.join(',');
+            hiddenInput.value = selected.join(','); //Chuyển mảng ID → chuỗi, gán input ẩn
         }
     </script>
 </body>

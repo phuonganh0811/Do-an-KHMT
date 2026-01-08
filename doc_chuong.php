@@ -54,7 +54,7 @@ $truyen = $stmt->get_result()->fetch_assoc();
 /* ====== BIẾN DÙNG CHO GIAO DIỆN ====== */
 $ten_truyen = $truyen['ten_truyen'] ?? '';
 $slug_truyen = $truyen['slug_truyen'] ?? '';
-$tac_gia = $truyen['tac_gia'] ?? 'Đang cập nhật';
+$tac_gia = $truyen['tac_gia'] ?? '';
 $the_loai = $truyen['the_loai'] ?? '';
 $thoi_gian_dang = timeAgo($chuong['ngay_tao']);
 

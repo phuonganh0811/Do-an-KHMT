@@ -8,13 +8,10 @@ session_start();
    ========================= */
 $isAdmin = false;
 if (isset($_SESSION['user_id'])) {
-    $uid = $_SESSION['user_id'];
-    $sql_user = "SELECT vai_tro FROM nguoi_dung WHERE id = ?";
-    $stmt = $conn->prepare($sql_user);
-    $stmt->bind_param("i", $uid);
+    $stmt = $conn->prepare("SELECT vai_tro FROM nguoi_dung WHERE id = ?");
+    $stmt->bind_param("i", $_SESSION['user_id']);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
-
     if ($user && $user['vai_tro'] === 'quan_tri') {
         $isAdmin = true;
     }
@@ -133,6 +130,19 @@ $result_de_cu = $conn->query($sql_de_cu);
             /* đổi màu khi hover chuột, tùy chọn */
         }
 
+        .overlay h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .overlay p {
+            font-style: italic;
+            font-size: 1.1rem;
+            max-width: 700px;
+            margin-bottom: 1.5rem;
+        }
+
         .slide {
             position: absolute;
             width: 100%;
@@ -141,10 +151,12 @@ $result_de_cu = $conn->query($sql_de_cu);
             background-position: center;
             opacity: 0;
             transition: opacity 0.8s ease-in-out;
+            pointer-events: none;
         }
 
         .slide.active {
             opacity: 1;
+            pointer-events: auto;
         }
 
         .overlay {
@@ -158,20 +170,17 @@ $result_de_cu = $conn->query($sql_de_cu);
             text-align: center;
             color: white;
             padding: 0 1rem;
+            pointer-events: none;
         }
 
-        .overlay h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
+        .overlay h1,
+        .overlay p,
+        .overlay .read-btn,
+        .overlay button {
+            pointer-events: auto;
+            user-select: text;
         }
 
-        .overlay p {
-            font-style: italic;
-            font-size: 1.1rem;
-            max-width: 700px;
-            margin-bottom: 1.5rem;
-        }
 
         .overlay button {
             background-color: #ff4f8b;
@@ -651,88 +660,297 @@ $result_de_cu = $conn->query($sql_de_cu);
                 justify-content: center;
             }
         }
+
+        .banner-wrapper {
+            position: relative;
+        }
+
+        .banner-admin {
+            position: absolute;
+            right: 15px;
+            bottom: 15px;
+            z-index: 9999;
+            /* CỰC KỲ QUAN TRỌNG */
+        }
+
+        .banner-admin button {
+            padding: 8px 12px;
+            margin-left: 6px;
+            background: #ff5fa2;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .read-btn {
+            background-color: #ff4f8b;
+            color: white;
+            padding: 0.8rem 2rem;
+            border-radius: 25px;
+            font-size: 1rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .read-btn:hover {
+            background-color: #ff6fa3;
+        }
     </style>
 </head>
 
 <body>
-    <div class="banner">
-        <button class="nav-btn prev">◀</button>
-        <button class="nav-btn next">▶</button>
-        <div class="dots"></div>
+    <div class="banner-wrapper">
+        <div class="banner">
+            <button class="nav-btn prev">◀</button>
+            <button class="nav-btn next">▶</button>
+            <div class="dots"></div>
+        </div>
+
+        <?php if ($isAdmin): ?>
+            <div class="banner-admin">
+                <button id="addBtn">Thêm</button>
+                <button id="editBtn">Sửa</button>
+                <button id="saveBtn" style="display:none">Lưu</button>
+                <input type="file" id="imageInput" hidden accept="image/*">
+            </div>
+        <?php endif; ?>
     </div>
 
+
+
+
     <script>
-        const banners = [
-            {
-                title: "Khi Tiểu Thư Thật Giả Cuồng Kiểm Soát Tranh...",
-                desc: "Ngay ngày đầu tiên trở về nhà họ Tưởng, tôi đã biết kẻ thù của mình không phải là tiểu kim giả kia mà là người chị...",
-                button: "Đọc truyện ngay",
-                image: "Ảnh/hinh-mau-hong-25.jpg"
-            },
-            {
-                title: "Nữ Chính Hồi Sinh Với Hệ Thống Phản Công",
-                desc: "Cô ấy từng là kẻ yếu đuối, nhưng lần này, cô trở lại với sức mạnh và trí tuệ không ai sánh bằng.",
-                button: "Xem ngay",
-                image: "Ảnh/hinh-mau-hong-25.jpg"
-            },
-            {
-                title: "Công Tước Hắc Ám Và Cô Gái Ánh Trăng",
-                desc: "Một mối tình cấm kỵ giữa ánh sáng và bóng tối, nơi định mệnh không thể chối bỏ.",
-                button: "Đọc ngay",
-                image: "Ảnh/hinh-nen-mau-hong-cute-cho-may-tinh-13.png.webp"
-            }
-        ];
+        const banners = <?= json_encode($banners, JSON_UNESCAPED_UNICODE) ?>;
+        const isAdmin = <?= $isAdmin ? 'true' : 'false' ?>;
 
-        const bannerContainer = document.querySelector(".banner");
-        const dotsContainer = document.querySelector(".dots");
+        const bannerEl = document.querySelector('.banner');
+        const dotsEl = document.querySelector('.dots');
 
-        // Tạo slide
+        let slides = [];
+        let dots = [];
+        let current = 0;
+        let editMode = false;
+        let newImage = null;
+
+        /* ===== TẠO SLIDE BAN ĐẦU ===== */
         banners.forEach((b, i) => {
-            const slide = document.createElement("div");
-            slide.className = "slide";
-            if (i === 0) slide.classList.add("active");
+            const slide = document.createElement('div');
+            slide.className = 'slide' + (i === 0 ? ' active' : '');
+            slide.dataset.id = b.id;
+            slide.dataset.link = b.link;
             slide.style.backgroundImage = `url(${b.image})`;
-            slide.innerHTML = `
-            <div class="overlay">
-              <h1>${b.title}</h1>
-              <p>${b.desc}</p>
-              <button>${b.button}</button>
-            </div>
-          `;
-            bannerContainer.appendChild(slide);
 
-            const dot = document.createElement("div");
-            dot.className = "dot";
-            if (i === 0) dot.classList.add("active");
-            dot.addEventListener("click", () => showSlide(i));
-            dotsContainer.appendChild(dot);
+            slide.innerHTML = `
+        <div class="overlay">
+            <h1 class="title">${b.title}</h1>
+            <p class="desc">${b.description}</p>
+            <a class="read-btn" href="${b.link}">Đọc truyện ngay</a>
+        </div>
+    `;
+            bannerEl.appendChild(slide);
+
+            const dot = document.createElement('div');
+            dot.className = 'dot' + (i === 0 ? ' active' : '');
+            dot.onclick = () => showSlide(i);
+            dotsEl.appendChild(dot);
         });
 
-        const slides = document.querySelectorAll(".slide");
-        const dots = document.querySelectorAll(".dot");
-        let current = 0;
+        refreshSlides();
 
-        function showSlide(i) {
-            slides[current].classList.remove("active");
-            dots[current].classList.remove("active");
-            current = i;
-            slides[current].classList.add("active");
-            dots[current].classList.add("active");
+        /* ===== REFRESH SLIDES & DOTS ===== */
+        function refreshSlides() {
+            slides = Array.from(document.querySelectorAll('.slide'));
+            dots = Array.from(document.querySelectorAll('.dot'));
         }
 
-        document.querySelector(".prev").onclick = () => {
+        function fixOldSlidesEditable() {
+            slides.forEach(slide => {
+                const overlay = slide.querySelector('.overlay');
+                const title = slide.querySelector('.title');
+                const desc = slide.querySelector('.desc');
+
+                if (overlay) overlay.style.pointerEvents = 'auto';
+
+                title.style.pointerEvents = 'auto';
+                desc.style.pointerEvents = 'auto';
+
+                title.onmousedown = e => e.stopPropagation();
+                desc.onmousedown = e => e.stopPropagation();
+                title.onclick = e => e.stopPropagation();
+                desc.onclick = e => e.stopPropagation();
+            });
+        }
+
+
+        /* ===== SHOW SLIDE ===== */
+        function showSlide(i) {
+            if (!slides[i]) return;
+
+            slides[current]?.classList.remove('active');
+            dots[current]?.classList.remove('active');
+
+            current = i;
+
+            slides[current].classList.add('active');
+            dots[current]?.classList.add('active');
+        }
+
+        /* ===== NAV ===== */
+        document.querySelector('.prev').onclick = () =>
             showSlide((current - 1 + slides.length) % slides.length);
-        };
 
-        document.querySelector(".next").onclick = () => {
+        document.querySelector('.next').onclick = () =>
             showSlide((current + 1) % slides.length);
-        };
 
-        // Tự động chuyển slide sau 5s
+        /* ===== AUTO SLIDE (DỪNG KHI EDIT) ===== */
         setInterval(() => {
-            showSlide((current + 1) % slides.length);
+            if (!editMode && slides.length > 1) {
+                showSlide((current + 1) % slides.length);
+            }
         }, 5000);
+
+        /* ================= ADMIN ================= */
+        if (isAdmin) {
+            const editBtn = document.getElementById('editBtn');
+            const saveBtn = document.getElementById('saveBtn');
+            const addBtn = document.getElementById('addBtn');
+            const imageInput = document.getElementById('imageInput');
+
+            editBtn.onclick = () => {
+                editMode = true;
+
+                editBtn.style.display = 'none';
+                saveBtn.style.display = 'inline-block';
+
+                const slide = slides[current];
+                const title = slide.querySelector('.title');
+                const desc = slide.querySelector('.desc');
+
+                title.contentEditable = true;
+                desc.contentEditable = true;
+
+                title.focus();
+            };
+
+
+
+            /* ===== ĐỔI ẢNH ===== */
+            bannerEl.addEventListener('click', e => {
+                if (!editMode) return;
+
+                // ❌ click vào nút đọc thì bỏ qua
+                if (e.target.closest('.read-btn')) return;
+                if (e.target.closest('.title')) return;
+                if (e.target.closest('.desc')) return;
+
+                imageInput.click();
+            });
+            ;
+
+            imageInput.onchange = e => {
+                newImage = e.target.files[0];
+                slides[current].style.backgroundImage =
+                    `url(${URL.createObjectURL(newImage)})`;
+            };
+
+            /* ===== ĐỔI LINK ===== */
+            bannerEl.addEventListener('click', e => {
+                const btn = e.target.closest('.read-btn');
+                if (!btn) return;
+
+                // ✅ KHÔNG EDIT → CHO LINK CHẠY
+                if (!editMode) {
+                    return; // ❗ KHÔNG stopPropagation
+                }
+
+                // ❌ ĐANG EDIT → CHẶN LINK
+                e.preventDefault();
+                e.stopPropagation();
+
+                const slide = slides[current];
+                const link = prompt(
+                    'Nhập link truyện:',
+                    slide.dataset.link || btn.getAttribute('href') || ''
+                );
+
+                if (link !== null && link.trim() !== '') {
+                    slide.dataset.link = link;
+                    btn.setAttribute('href', link);
+                }
+            });
+
+
+
+            /* ===== LƯU ===== */
+            saveBtn.onclick = async () => {
+                editMode = false;
+                const slide = slides[current];
+                const fd = new FormData();
+
+                fd.append('id', slide.dataset.id);
+                fd.append('title', slide.querySelector('.title').innerText.trim());
+                fd.append('description', slide.querySelector('.desc').innerText.trim());
+                fd.append('link', slide.dataset.link || '#');
+
+                if (newImage) fd.append('image', newImage);
+
+                const res = await fetch('update_slide.php', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    alert('✔ Đã lưu banner');
+                    location.reload();
+                } else {
+                    alert('❌ Lỗi lưu banner');
+                }
+            };
+
+            /* ===== THÊM BANNER ===== */
+            addBtn.onclick = () => {
+                editMode = true;
+                saveBtn.style.display = 'inline-block';
+                editBtn.style.display = 'none';
+
+                const slide = document.createElement('div');
+                slide.className = 'slide';
+                slide.dataset.id = 0;
+                slide.dataset.link = '';
+                slide.style.backgroundImage = 'url(images/no-image.png)';
+
+                slide.innerHTML = `
+            <div class="overlay">
+                <h1 class="title" contenteditable="true">Tiêu đề banner</h1>
+                <p class="desc" contenteditable="true">Mô tả banner</p>
+                <a class="read-btn" href="#">
+                    <button>Đọc truyện ngay</button>
+                </a>
+            </div>
+        `;
+
+                bannerEl.appendChild(slide);
+
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                dot.onclick = () => showSlide(slides.length);
+                dotsEl.appendChild(dot);
+
+                refreshSlides();
+                showSlide(slides.length - 1);
+
+                newImage = null;
+            };
+        }
     </script>
+
+
+
+
+
 
     <div class="TruyenMoiCapNhat" id="truyen-moi">
         <div class="TruyenMoiCapNhat-content">
